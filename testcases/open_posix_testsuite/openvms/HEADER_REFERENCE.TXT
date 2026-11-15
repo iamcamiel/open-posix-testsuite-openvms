@@ -1,0 +1,5 @@
+Reference: baseos/PTHREAD/PTHREAD.H (API names only; header not vendored)
+SHA256: 732625af7ca1ba1ecd75e1dda65abe34b61effd97c3fae326660089c96d5693a
+Classification: declarations plus explicit UNIX-only/obsolete exclusions.
+not_declared means absent from this header, not a runtime ENOTSUP claim.
+Verify the deployment node's headers and optional features separately.

@@ -1,0 +1,9 @@
+/BUILD/
+/RESULTS/
+/PTS_ORIGINAL.H
+*.OBJ
+*.EXE
+*.LIS
+*.MAP
+__pycache__/
+*.pyc
