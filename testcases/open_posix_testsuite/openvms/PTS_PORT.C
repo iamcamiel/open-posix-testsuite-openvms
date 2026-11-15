@@ -1,12 +1,14 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Copyright 2026 iamcamiel
  * X-1  CV  Camiel Vanderhoeven  15-Nov-2026: Strict control/result protocol.
+ * X-2  CV  Camiel Vanderhoeven  15-Nov-2026: Retry existing run names.
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
+#include <sys/stat.h>
 #include "PTS_PORT.H"
 
 static int line(FILE *in, char *out, size_t size)
@@ -152,4 +154,32 @@ int pts_subdirectory(char *out, size_t size, const char *directory,
 	n = snprintf(out, size, "%s/%s", directory, leaf);
 #endif
 	return n < 0 || (size_t)n >= size ? -1 : 0;
+}
+
+int pts_create_run_directory(char *out, size_t size, const char *directory,
+			     unsigned long pid, unsigned long timestamp)
+{
+	char leaf[PTS_ID_MAX];
+	unsigned long serial;
+	int n;
+
+	/* Successive images run in the same DCL process. PID plus seconds is
+	 * therefore not unique. Reserve a fresh directory atomically; never
+	 * reuse a previous run, even if the timestamp or PID is repeated.
+	 */
+	for (serial = 0; serial < 100000; serial++) {
+		n = snprintf(leaf, sizeof(leaf), "R_%08lx_%08lx_%05lu",
+			     pid, timestamp, serial);
+		if (n < 0 || (size_t)n >= sizeof(leaf) ||
+		    pts_subdirectory(out, size, directory, leaf)) {
+			errno = ENAMETOOLONG;
+			return -1;
+		}
+		if (mkdir(out, 0700) == 0)
+			return 0;
+		if (errno != EEXIST)
+			return -1;
+	}
+	errno = EEXIST;
+	return -1;
 }

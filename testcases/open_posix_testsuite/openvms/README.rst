@@ -159,11 +159,13 @@ record never overrides an abnormal process exit.
 Results and diagnostics
 -----------------------
 
-Each run creates a unique directory beneath ``[.RESULTS]``::
+Each run atomically reserves a new directory beneath ``[.RESULTS]``. A serial
+suffix handles repeated images in the same DCL process within one second;
+existing directories and files are never reused::
 
-    [.RESULTS.R_<pid>_<time>]SUMMARY.CSV
-    [.RESULTS.R_<pid>_<time>]MANIFEST.DAT
-    [.RESULTS.R_<pid>_<time>]BUILD_INFO.TXT
+    [.RESULTS.R_<pid>_<time>_<serial>]SUMMARY.CSV
+    [.RESULTS.R_<pid>_<time>_<serial>]MANIFEST.DAT
+    [.RESULTS.R_<pid>_<time>_<serial>]BUILD_INFO.TXT
 
 Each case/repetition has a separate child directory containing::
 
@@ -277,6 +279,10 @@ Select a compiler using CC or --cc. For a larger run::
 
 The self-tests cover normal return, explicit exit, unresolved, unsupported,
 untested, crash, timeout, missing/invalid result, and invalid manifest handling.
+They also force repeated PID/time values and concurrent run-directory collisions
+while checking that previous artifacts remain unchanged. Native SELFTEST.COM
+uses a fresh, explicit-version output filename for each invocation and checks
+the fixture identity before interpreting its result.
 Crashing/hanging fixtures are excluded from CASES.DAT.
 
 Host success checks the portable sources and POSIX supervision backend.
