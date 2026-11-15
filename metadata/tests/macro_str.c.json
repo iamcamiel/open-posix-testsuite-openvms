@@ -1,6 +1,0 @@
-  "macro_str": {
-   "syscall": "syscall(\"foo\")",
-   "groups": [
-   ],
-   "fname": "macro_str.c"
-  }

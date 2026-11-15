@@ -1,8 +1,0 @@
-  "expand_flags": {
-   "groups": [
-   ],
-   "all_filesystems": true,
-   "needs_device": true,
-   "needs_tmpdir": true,
-   "fname": "expand_flags.c"
-  }

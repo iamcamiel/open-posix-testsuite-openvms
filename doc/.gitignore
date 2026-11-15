@@ -1,7 +1,0 @@
-.venv/
-html/
-build/
-_static/cve.rst
-_static/syscalls.rst
-_static/tests.rst
-syscalls.tbl

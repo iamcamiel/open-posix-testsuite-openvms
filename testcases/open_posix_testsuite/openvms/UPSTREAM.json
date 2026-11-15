@@ -1,0 +1,123 @@
+{
+  "repository": "https://github.com/linux-test-project/ltp",
+  "commit": "686a331b6240e54ac3170717adfd28ec94cfe100",
+  "suite_path": "testcases/open_posix_testsuite",
+  "retrieved": "2026-11-15",
+  "license": "GPL-2.0 (upstream COPYING)",
+  "cases": {
+    "PT_CREATE_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_create/1-1.c",
+      "sha": "141503f3a257e4abb10349047faf1a913b5cecdd",
+      "api": "pthread_create",
+      "assertion": "pthread_create() creates a new thread with attributes specified by 'attr', within a process."
+    },
+    "PT_JOIN_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_join/1-1.c",
+      "sha": "302540e7f194c13c2ad590565ba76081911d93b8",
+      "api": "pthread_join",
+      "assertion": "pthread_join() shall suspend the execution of the calling thread until the target 'thread' terminates, unless 'thread' has already terminated."
+    },
+    "PT_EQUAL_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_equal/1-1.c",
+      "sha": "1f1dae95cc4ea9ccd944165a13f4c37d62f42f54",
+      "api": "pthread_equal",
+      "assertion": "pthread_equal() shall compare the thread ids t1 and t2. The function shall return a non-zero value if t1 and t2 are equal, othersise zero shall be returned. No errors are defined."
+    },
+    "PT_ATTR_INIT_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_attr_init/1-1.c",
+      "sha": "3a58b50961a6d000d020cca3a4fc2c3a18077cb1",
+      "api": "pthread_attr_init",
+      "assertion": "pthread_attr_init() shall initialize a thread attributes object 'attr' with the default value for all the individual attributes used by a given implementation. NOTE: Since most def"
+    },
+    "PT_ATTR_GETDETACHSTATE_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_attr_getdetachstate/1-1.c",
+      "sha": "617595246edf3d5fedf7ee9b89e1f202dfa74b2d",
+      "api": "pthread_attr_getdetachstate",
+      "assertion": "pthread_attr_getdetachstate() shall get the detachstate attribute in the 'attr' object. The detach state is either PTHREAD_CREATE_DETACHED or PTHEAD_CREATE_JOINABLE."
+    },
+    "PT_ATTR_SETDETACHSTATE_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_attr_setdetachstate/1-1.c",
+      "sha": "c79db2fe79385c82102b12c335941edbff6a585c",
+      "api": "pthread_attr_setdetachstate",
+      "assertion": "pthread_attr_setdetachstate() shall set the detachstate attribute in the 'attr' object. The detach state is either PTHREAD_CREATE_DETACHED or PTHEAD_CREATE_JOINABLE. A value of PTH"
+    },
+    "PT_MUTEX_INIT_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_mutex_init/1-1.c",
+      "sha": "55f3f48cc6c8b210218d2133529d2662c72efce8",
+      "api": "pthread_mutex_init",
+      "assertion": "pthread_mutex_init() initializes a mutex referenced by 'mutex' with attributes specified by 'attr'. If 'attr' is NULL, the default mutex attributes are used. The effect shall be th"
+    },
+    "PT_MUTEX_DESTROY_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_mutex_destroy/1-1.c",
+      "sha": "0ef256d4ae44f92c221e60d458416a9c0f6c7894",
+      "api": "pthread_mutex_destroy",
+      "assertion": "pthread_mutex_destroy() shall destroy the mutex referenced by 'mutex'; the mutex object in effect becomes uninitialized. "
+    },
+    "PT_MUTEX_UNLOCK_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_mutex_unlock/1-1.c",
+      "sha": "0b8a93ba29fd298adca16e11c92b8a5c62f8b75d",
+      "api": "pthread_mutex_unlock",
+      "assertion": "pthread_mutex_unlock() shall release the mutex object 'mutex'. Steps: -- Initilize a mutex object -- Get the mutex using pthread_mutex_lock() -- Release the mutex using pthread_mut"
+    },
+    "PT_MUTEXATTR_INIT_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_mutexattr_init/1-1.c",
+      "sha": "ecdc78446de9f434ff047cbcf7883e343011d71e",
+      "api": "pthread_mutexattr_init",
+      "assertion": "pthread_mutexattr_init() shall initialize a mutex attributes object 'attr' with the default value for all of the attributes defined by the implementation. Steps: 1. Initialize a pt"
+    },
+    "PT_MUTEXATTR_SETTYPE_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_mutexattr_settype/1-1.c",
+      "sha": "f580f8cbed0a14fcb1e0a440fcf41337c681e672",
+      "api": "pthread_mutexattr_settype",
+      "assertion": "pthread_mutexattr_settype assertion 1"
+    },
+    "PT_COND_INIT_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_cond_init/1-1.c",
+      "sha": "31b695874ae9815f3ddda1af5bdb33a8ecbaf44a",
+      "api": "pthread_cond_init",
+      "assertion": "pthread_cond_init() shall initialize the condition variable referenced by cond with attributes referenced by attr. If attr is NULL, the default condition variable attributes shall "
+    },
+    "PT_COND_DESTROY_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_cond_destroy/1-1.c",
+      "sha": "f60c829cf17c27da3e244f140b5db1207750a51a",
+      "api": "pthread_cond_destroy",
+      "assertion": "pthread_cond_destroy() shall destroy the condition variable referenced by 'cond'; the condition variable object in effect becomes uninitialized. "
+    },
+    "PT_ONCE_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_once/1-1.c",
+      "sha": "f39b33ecc002f65d18c30d843846c643fdf97261",
+      "api": "pthread_once",
+      "assertion": "pthread_once() Dynamic package installation. Tihe first call to pthread_once() by any thread in a process, with a given 'once_control', shall call the 'init_routine' with no argume"
+    },
+    "PT_KEY_CREATE_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_key_create/1-1.c",
+      "sha": "5b6cd2847be481e3805021944b8ed1b4b52a1cb3",
+      "api": "pthread_key_create",
+      "assertion": "pthread_key_create() shall create a thread-specific data key visible to all threaads in the process. Key values provided by pthread_key_create() are opaque objects used to locate t"
+    },
+    "PT_KEY_DELETE_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_key_delete/1-1.c",
+      "sha": "7511aff1f385c85493a2fd3c51a2d6525a8671b2",
+      "api": "pthread_key_delete",
+      "assertion": "pthread_key_delete() Shall delete a thread-specific data key previously returned by pthread_key_create. The thread-specific data values specified data values associated with 'key' "
+    },
+    "PT_GETSPECIFIC_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_getspecific/1-1.c",
+      "sha": "a2956cdaedd0a0e93c41487142fc9edcdba02aa5",
+      "api": "pthread_getspecific",
+      "assertion": "pthread_getspecific() shall return the value currently bound to the specified key on behalf of the calling thread. Calling pthread_getspecific() with a key value not obtained from "
+    },
+    "PT_SETSPECIFIC_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_setspecific/1-1.c",
+      "sha": "6fcbd7ae832a15562c0c9392a059672b2b6ca108",
+      "api": "pthread_setspecific",
+      "assertion": "pthread_setspecific() shall associate a thread-specific value with a key obtained via a previouse call to pthread_key_create. Different threads may bind different values to the sam"
+    },
+    "PT_CLEANUP_PUSH_1_1": {
+      "path": "testcases/open_posix_testsuite/conformance/interfaces/pthread_cleanup_push/1-1.c",
+      "sha": "818b86db5d4d9ebe55997904ba9e71c728f32802",
+      "api": "pthread_cleanup_push",
+      "assertion": "pthread_cleanup_push assertion 1"
+    }
+  }
+}
