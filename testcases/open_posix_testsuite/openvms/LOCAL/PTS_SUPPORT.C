@@ -1,6 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Copyright 2026 iamcamiel; X-1 CV Camiel Vanderhoeven 15-Nov-2026. */
+/* X-2 CV Camiel Vanderhoeven 15-Nov-2026: sched.h is not needed on VMS. */
+#ifndef __VMS
 #include <sched.h>
+#endif
 #include "PTS_CHECK.H"
 void pts_check(int rc, const char *call, int line)
 {
