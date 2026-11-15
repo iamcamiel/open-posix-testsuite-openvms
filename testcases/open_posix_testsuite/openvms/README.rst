@@ -3,26 +3,14 @@
 OpenVMS pthread test port
 =========================
 
-This is the initial OpenVMS x86-64 port of a selected Open POSIX Test Suite
-subset, targeting VSI C and beginning with V9.2-3. It is not a complete
+This is the initial OpenVMS port of a selected Open POSIX Test Suite
+subset, targeting VSI C. It is not a complete
 conformance suite or a certification claim.
-
-The initial manifest has 19 unchanged upstream tests and 10 supplemental
-regression/stress tests. The upstream commit is
-``686a331b6240e54ac3170717adfd28ec94cfe100``. ``UPSTREAM.json`` records
-original paths and Git blob hashes. Upstream notices are preserved;
-``../COPYING`` applies.
-
-Local Linux/WSL validation does not replace native OpenVMS compilation,
-linking, execution, quota, mailbox, timer, and exception validation.
 
 Get the sources
 ---------------
 
 Repository: https://github.com/iamcamiel/open-posix-testsuite-openvms
-
-After the initial port is merged, use ``master``. Development takes place
-on ``feature/openvms-port``.
 
 On an OpenVMS node with Git::
 
@@ -253,34 +241,6 @@ Planned work includes the full attributes/error matrix, scheduling/priorities,
 additional cancellation modes and points, stack/guard boundaries, AST delivery,
 detached startup, native exception/unwind behavior, register/FP preservation,
 CPU-time accounting, remaining _np extensions, and target-side primitive tests.
-
-Portable developer validation
------------------------------
-
-On Linux or Ubuntu WSL, with Python 3 and a C99 compiler supporting pthreads::
-
-    python3 TOOLS/BUILD_HOST.py --self-test --run --iterations 200
-
-An additional native-branch control-flow simulation is::
-
-    python3 TOOLS/CHECK_NATIVE.py
-
-It compiles the native supervisor branch against controlled service stubs and
-checks normal termination, timeout, cleanup, invalid accounting records, and
-service failures. It also checks result/control parsing and native path syntax.
-It is not a check of OpenVMS headers, ABI constants, or actual system services.
-
-Select a compiler using CC or --cc. For a larger run::
-
-    python3 TOOLS/BUILD_HOST.py --self-test --run --repeats 3 \
-        --seed 12345 --threads 16 --iterations 2000
-
-The self-tests cover normal return, explicit exit, unresolved, unsupported,
-untested, crash, timeout, missing/invalid result, and invalid manifest handling.
-Crashing/hanging fixtures are excluded from CASES.DAT.
-
-Host success checks the portable sources and POSIX supervision backend.
-It does not validate OpenVMS pthreads or the native service ABI and behavior.
 
 Repository scope
 ----------------
