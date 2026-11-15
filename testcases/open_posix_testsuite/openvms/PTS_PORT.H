@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Copyright 2026 iamcamiel
  * X-1  CV  Camiel Vanderhoeven  15-Nov-2026: Initial OpenVMS port.
+ * X-2  CV  Camiel Vanderhoeven  15-Nov-2026: Collision-safe run directories.
  */
 #ifndef PTS_PORT_H
 #define PTS_PORT_H
@@ -38,5 +39,7 @@ int pts_safe_id(const char *s);
 int pts_join(char *out, size_t size, const char *directory, const char *file);
 int pts_subdirectory(char *out, size_t size, const char *directory,
 		     const char *leaf);
+int pts_create_run_directory(char *out, size_t size, const char *directory,
+			     unsigned long pid, unsigned long timestamp);
 
 #endif

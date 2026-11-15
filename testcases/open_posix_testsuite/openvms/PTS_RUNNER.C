@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Copyright 2026 iamcamiel
  * X-1  CV  Camiel Vanderhoeven  15-Nov-2026: Isolated native test runner.
+ * X-2  CV  Camiel Vanderhoeven  15-Nov-2026: Reserve unique run directories.
  */
 #ifndef __VMS
 #define _POSIX_C_SOURCE 200809L
@@ -400,9 +401,8 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 	fclose(check);
-	snprintf(leaf, sizeof(leaf), "R_%08lx_%08lx", (unsigned long)getpid(),
-		 (unsigned long)time(NULL));
-	if (pts_subdirectory(run, sizeof(run), output_root, leaf) || mkdir(run, 0700)) {
+	if (pts_create_run_directory(run, sizeof(run), output_root,
+				     (unsigned long)getpid(), (unsigned long)time(NULL))) {
 		perror("creating unique run directory");
 		return EXIT_FAILURE;
 	}

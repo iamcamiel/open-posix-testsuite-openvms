@@ -94,8 +94,59 @@ def build(cc="cc"):
     print(f"Built {len(cases())} selected cases and supervisor", flush=True)
 
 
-def self_test():
+def run_directory_self_test(cc):
+    import concurrent.futures
+    import ctypes
+    import errno
     import tempfile
+
+    library = PORT / "BUILD/RUN_DIR_TEST.so"
+    subprocess.run([cc, "-std=c99", "-D_POSIX_C_SOURCE=200809L",
+                    "-Wall", "-Wextra", "-Werror", "-fPIC", "-shared",
+                    "-I" + str(PORT), "-x", "c", str(PORT / "PTS_PORT.C"),
+                    "-o", str(library)], check=True, timeout=60)
+    lib = ctypes.CDLL(str(library), use_errno=True)
+    create = lib.pts_create_run_directory
+    create.argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.c_char_p,
+                       ctypes.c_ulong, ctypes.c_ulong]
+    create.restype = ctypes.c_int
+    with tempfile.TemporaryDirectory(prefix="pts_same_pid_") as temp:
+        root = Path(temp)
+
+        def reserve():
+            out = ctypes.create_string_buffer(1024)
+            assert create(out, len(out), os.fsencode(root), 42, 1700000000) == 0
+            return Path(os.fsdecode(out.value))
+
+        first = reserve()
+        marker = first / "previous-result.txt"
+        marker.write_text("preserve this run")
+        second = reserve()
+        assert first != second
+        # A colliding ordinary file must also remain untouched.
+        second.rmdir()
+        second.write_text("existing file")
+        third = reserve()
+        assert third not in {first, second}
+        assert marker.read_text() == "preserve this run"
+        assert second.read_text() == "existing file"
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            directories = list(pool.map(lambda _: reserve(), range(8)))
+        assert len(set(directories)) == 8
+        assert all(p.is_dir() for p in directories)
+        out = ctypes.create_string_buffer(1024)
+        assert create(out, len(out), os.fsencode(root / "absent/parent"),
+                      42, 1700000000) == -1
+        assert ctypes.get_errno() == errno.ENOENT
+        assert create(out, 1, os.fsencode(root), 42, 1700000000) == -1
+        assert ctypes.get_errno() == errno.ENAMETOOLONG
+    print("PASS: repeated PID/time, concurrent directory collisions, prior "
+          "artifacts, and directory error paths", flush=True)
+
+
+def self_test(cc=None):
+    import tempfile
+    run_directory_self_test(cc or os.environ.get("CC", "cc"))
     builddir = PORT / "BUILD"
     expected = {
         0: "PASS", 1: "FAIL", 2: "UNRESOLVED", 4: "UNSUPPORTED",
@@ -115,7 +166,7 @@ def self_test():
                 cwd=PORT, capture_output=True, text=True, timeout=15)
             summaries = sorted(root.glob("R_*/SUMMARY.CSV"))
             assert summaries, result.stdout + result.stderr
-            # Each run has a different supervisor PID, so select its case.
+            # Select the fixture identity explicitly, independent of naming.
             records = [row for path in summaries
                        for row in csv.DictReader(path.open())
                        if row["case"] == f"FIXTURE_{kind}"]
@@ -143,7 +194,7 @@ def main():
     args = parser.parse_args()
     build(args.cc)
     if args.self_test:
-        self_test()
+        self_test(args.cc)
     if args.run:
         return subprocess.call(
             [str(PORT / "BUILD/PTS_RUNNER.EXE"), "CASES.DAT", "RESULTS",

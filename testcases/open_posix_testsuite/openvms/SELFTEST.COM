@@ -1,5 +1,6 @@
 $! SPDX-License-Identifier: GPL-2.0-or-later
 $! X-1 CV Camiel Vanderhoeven 15-Nov-2026: Target-side supervisor checks.
+$! X-2 CV Camiel Vanderhoeven 15-Nov-2026: Never read stale fixture output.
 $! Run @BUILD first. These fixtures deliberately fail, crash, and time out.
 $ saved_default = f$environment("DEFAULT")
 $ on error then goto failed
@@ -19,13 +20,24 @@ $ want = f$element(index,",",expected)
 $ open/write manifest [.BUILD]FIXTURE_RUN.DAT
 $ write manifest "FIXTURE_" + kind + "|fixture|1|selftest|none|fixture|local|ready"
 $ close manifest
-$ define/user SYS$OUTPUT [.BUILD]SELFTEST_OUTPUT.TXT
+$ capture_index = 0
+$find_capture:
+$ capture = build_dir + "ST_" + f$getjpi("","PID") + "_" + kind + -
+            "_" + f$string(capture_index) + ".TXT;1"
+$ if f$search(capture) .eqs. "" then goto capture_ready
+$ capture_index = capture_index + 1
+$ if capture_index .lt. 100000 then goto find_capture
+$ goto bad_output
+$capture_ready:
+$! A unique explicit version cannot resolve to output from an earlier image.
+$ define/user SYS$OUTPUT 'capture'
 $ set noon
 $ runner "[.BUILD]FIXTURE_RUN.DAT" "[.RESULTS]"
 $ run_status = $status
 $ set on
 $ on error then goto failed
-$ open/read output [.BUILD]SELFTEST_OUTPUT.TXT
+$ if f$search(capture) .eqs. "" then goto bad_output
+$ open/read output 'capture'
 $ read/end=bad_output output first_line
 $ close output
 $ if f$extract(0,9,first_line) .nes. "Results: " then goto bad_output
@@ -35,6 +47,7 @@ $ read/end=bad_report report heading
 $ read/end=bad_report report row
 $ close report
 $ got = f$element(2,",",row)
+$ if f$element(0,",",row) .nes. "FIXTURE_" + kind then goto mismatch
 $ if got .nes. want then goto mismatch
 $ if want .eqs. "PASS" .and. .not. (run_status .and. 1) then goto mismatch
 $ if want .nes. "PASS" .and. (run_status .and. 1) then goto mismatch
@@ -46,7 +59,7 @@ $ write sys$output "PASS: native runner classifications, abnormal shutdown, and 
 $ set default 'saved_default'
 $ exit 1
 $bad_output:
-$ write sys$error "Missing runner output during fixture " + kind
+$ write sys$error "Missing fresh runner output during fixture " + kind
 $ goto failed
 $bad_report:
 $ write sys$error "Missing runner summary during fixture " + kind
