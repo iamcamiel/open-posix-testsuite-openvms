@@ -4,8 +4,7 @@ Open POSIX tests for OpenVMS
 ============================
 
 OpenVMS x86-64 port of a selected Open POSIX Test Suite subset. This repository
-is derived from Linux Test Project at commit
-686a331b6240e54ac3170717adfd28ec94cfe100.
+is derived from Linux Test Project.
 
 The initial subset includes 19 unchanged upstream conformance cases,
 10 supplemental regression/stress cases, an API coverage inventory, and a
@@ -47,21 +46,6 @@ candidate-runtime selection, workload settings, result codes, diagnostics,
 coverage limits, and development checks.
 
 .. _OpenVMS_instructions: testcases/open_posix_testsuite/openvms/README.rst
-
-Validation status
------------------
-
-The portable code is checked on Linux/WSL. Native OpenVMS compilation, linking,
-execution, mailbox/timer behavior, and exception handling still require target
-validation. Linux passes are not OpenVMS passes, and the selected subset is not
-a complete conformance or certification suite.
-
-Portable developer checks
--------------------------
-
-From testcases/open_posix_testsuite/openvms on Linux or Ubuntu WSL::
-
-    python3 TOOLS/BUILD_HOST.py --self-test --run --iterations 200
 
 Licence and provenance
 ----------------------
