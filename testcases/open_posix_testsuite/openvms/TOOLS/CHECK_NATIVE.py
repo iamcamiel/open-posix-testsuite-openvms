@@ -143,7 +143,7 @@ static void protocol_checks(void)
     int i, code;
     unsigned long number;
     FILE *out;
-    char path[128], joined[128];
+    char path[128], joined[128], root[128], first[256], second[256];
     struct pts_control c, read;
     snprintf(path,sizeof(path),"/tmp/pts_protocol_%lu.dat",(unsigned long)getpid());
     for(i=0;i<7;i++){
@@ -169,6 +169,13 @@ static void protocol_checks(void)
     assert(!strcmp(joined,"DISK:[DIR.CHILD]"));
     assert(!pts_join(joined,sizeof(joined),"DISK:[DIR]","FILE.DAT"));
     assert(!strcmp(joined,"DISK:[DIR]FILE.DAT"));
+    /* Exercise native-format names with repeated identity/time. These are
+       literal directory names in the host simulation, not VMS ABI tests. */
+    snprintf(root,sizeof(root),"SIM_%lu:[RESULTS]",(unsigned long)getpid());
+    assert(!pts_create_run_directory(first,sizeof(first),root,42,1700000000));
+    assert(!pts_create_run_directory(second,sizeof(second),root,42,1700000000));
+    assert(strcmp(first,second));
+    assert(!rmdir(first) && !rmdir(second));
     remove(path);
 }
 int main(void)
@@ -210,7 +217,7 @@ def main():
                     "-Wall", "-Wextra", "-Werror", "-I"+str(stubs), "-I"+str(PORT),
                     "-x", "c", str(stubs/"NATIVE_TEST.C"), str(PORT/"PTS_PORT.C"),
                     "-o", str(binary)], check=True, timeout=60)
-    subprocess.run([str(binary)], check=True, timeout=10)
+    subprocess.run([str(binary)], cwd=stubs, check=True, timeout=10)
 
 
 if __name__ == "__main__":
