@@ -1,8 +1,11 @@
 #ifdef __VMS
-#pragma module PTS_RUNNER "X-3"
+#pragma module PTS_RUNNER "X-4"
 #endif
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Copyright 2026 iamcamiel
+ * Copyright 2026 VMS Software, Inc.
+ * X-4  CV  Camiel Vanderhoeven  16-Nov-2026: Pass parent AST/direct-I/O limits
+ *     explicitly to child processes instead of accepting small PQL defaults.
  * X-1  CV  Camiel Vanderhoeven  15-Nov-2026: Isolated native test runner.
  * X-3  CV  Camiel Vanderhoeven  16-Nov-2026: Support up to 1024 workers.
  * X-2  CV  Camiel Vanderhoeven  15-Nov-2026: Reserve unique run directories.
@@ -35,6 +38,9 @@
 #include <ssdef.h>
 #include <iodef.h>
 #include <dvidef.h>
+#include <jpidef.h>
+#include <pqldef.h>
+#include <efndef.h>
 #include <accdef.h>
 #include <msgdef.h>
 #else
@@ -79,6 +85,68 @@ struct io_status {
 	unsigned int detail;
 };
 
+struct item3 {
+	unsigned short length, code;
+	void *buffer;
+	unsigned short *returned;
+};
+
+struct query_status {
+	unsigned int status, reserved;
+};
+
+/* SYS$CREPRC expects a byte code followed immediately by a 32-bit quota.
+ * Build bytes explicitly; normal C structure alignment would add padding.
+ */
+#define CHILD_QUOTA_BYTES 11
+typedef char quota_value_must_be_four_bytes[(sizeof(unsigned int) == 4) ? 1 : -1];
+
+static unsigned int child_quotas(unsigned char *quotas)
+{
+	struct item3 items[3];
+	struct query_status iosb;
+	unsigned int astlm = 0, diolm = 0, status;
+	unsigned short ast_length = 0, dio_length = 0;
+	static unsigned int printed_astlm, printed_diolm;
+	static int printed;
+
+	memset(items, 0, sizeof(items));
+	memset(&iosb, 0, sizeof(iosb));
+	items[0].length = sizeof(astlm);
+	items[0].code = JPI$_ASTLM;
+	items[0].buffer = &astlm;
+	items[0].returned = &ast_length;
+	items[1].length = sizeof(diolm);
+	items[1].code = JPI$_DIOLM;
+	items[1].buffer = &diolm;
+	items[1].returned = &dio_length;
+	status = sys$getjpiw(EFN$C_ENF, 0, 0, items, &iosb, 0, 0);
+	if (status & 1)
+		status = iosb.status;
+	if ((status & 1) &&
+	    (ast_length != sizeof(astlm) || dio_length != sizeof(diolm)))
+		status = SS$_BADPARAM;
+	if (!(status & 1)) {
+		fprintf(stderr, "Reading child quota limits failed: OpenVMS status %08x\n",
+			status);
+		return status;
+	}
+	quotas[0] = PQL$_ASTLM;
+	memcpy(quotas + 1, &astlm, sizeof(astlm));
+	quotas[5] = PQL$_DIOLM;
+	memcpy(quotas + 6, &diolm, sizeof(diolm));
+	quotas[10] = PQL$_LISTEND;
+	if (!printed || astlm != printed_astlm || diolm != printed_diolm) {
+		printf("Child quota request: ASTLM=%u DIOLM=%u (runner limits)\n",
+		       astlm, diolm);
+		fflush(stdout);
+		printed_astlm = astlm;
+		printed_diolm = diolm;
+		printed = 1;
+	}
+	return SS$_NORMAL;
+}
+
 static struct dsc$descriptor_s descriptor(const char *s)
 {
 	struct dsc$descriptor_s d;
@@ -96,11 +164,8 @@ static struct outcome execute(const char *image, const char *input,
 	struct dsc$descriptor_s img = descriptor(image), in = descriptor(input);
 	struct dsc$descriptor_s out = descriptor(output), err = descriptor(error);
 	struct io_status iosb;
-	struct {
-		unsigned short length, code;
-		void *buffer;
-		unsigned short *returned;
-	} items[2];
+	struct item3 items[2];
+	unsigned char quotas[CHILD_QUOTA_BYTES];
 	union {
 		struct accdef accounting;
 		unsigned char bytes[512];
@@ -112,6 +177,9 @@ static struct outcome execute(const char *image, const char *input,
 	__int64 pause = -200000; /* Relative 20ms wakeup; no FP-format ABI. */
 	int have_event = 0, have_timer = 0, killed = 0;
 
+	status = child_quotas(quotas);
+	if (!(status & 1))
+		goto setup_error;
 	memset(items, 0, sizeof(items));
 	status = sys$crembx(0, &channel, sizeof(message), 1024, 0, 0, 0, 0);
 	if (!(status & 1))
@@ -144,9 +212,11 @@ static struct outcome execute(const char *image, const char *input,
 	have_timer = 1;
 	/* Start the image directly: no shell, LOGINOUT, or pthread watchdog.
 	 * The supervisor is compiled with 32-bit pointers for these ILE3 lists.
+	 * A null quota list would use system PQL defaults, not the runner's full
+	 * limits. Preserve its AST/direct-I/O limits; leave other quotas alone.
 	 */
 	status = sys$creprc(&pid, &img, &in, &out, &err,
-			   0, 0, 0, 0, 0, (unsigned short)unit, 0);
+			   0, quotas, 0, 0, 0, (unsigned short)unit, 0);
 	if (!(status & 1))
 		goto setup_error;
 	for (;;) {

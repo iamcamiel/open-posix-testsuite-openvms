@@ -1,9 +1,11 @@
 #ifdef __VMS
-#pragma module PT_QIO_AST "X-1"
+#pragma module PT_QIO_AST "X-2"
 #endif
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Copyright 2026 iamcamiel
  * Copyright 2026 VMS Software, Inc.
+ * X-2 CV Camiel Vanderhoeven 16-Nov-2026:
+ *     Report effective child AST and direct-I/O quotas before the workload.
  * X-1 CV Camiel Vanderhoeven 16-Nov-2026:
  *     Exercise persistent I/O slots, cross-thread waits and QIO/DCLAST AST
  *     completion through pthread_cond_signal_int_np. Original supplemental
@@ -25,6 +27,7 @@ int test_main(int argc, char **argv)
 #include <builtins.h>
 #include <efndef.h>
 #include <iodef.h>
+#include <jpidef.h>
 #include <rms.h>
 #include <ssdef.h>
 #include <starlet.h>
@@ -99,12 +102,54 @@ static int start_go;
 #pragma __pointer_size 32
 static struct FAB scratch_fab;
 static char scratch_name[] = "PTS_QIO.DAT;1";
+/* GETJPI uses an ILE3 item list here, with 32-bit buffer/length pointers.
+ * Keep the list and its targets in static low-address storage in both builds.
+ */
+static unsigned int quota_values[4];
+static unsigned short quota_lengths[4];
+static struct {
+	unsigned int status, reserved;
+} quota_iosb;
+static struct {
+	unsigned short length, code;
+	void *buffer;
+	unsigned short *returned;
+} quota_items[5] = {
+	{sizeof(unsigned int), JPI$_ASTLM, &quota_values[0], &quota_lengths[0]},
+	{sizeof(unsigned int), JPI$_ASTCNT, &quota_values[1], &quota_lengths[1]},
+	{sizeof(unsigned int), JPI$_DIOLM, &quota_values[2], &quota_lengths[2]},
+	{sizeof(unsigned int), JPI$_DIOCNT, &quota_values[3], &quota_lengths[3]},
+	{0, 0, NULL, NULL}
+};
 #pragma __pointer_size __restore
 
 static void native_failure(const char *operation, unsigned int status)
 {
 	fprintf(stderr, "%s failed: OpenVMS status %08x\n", operation, status);
+	if (status == SS$_EXQUOTA)
+		fputs("Process quota exhausted; see startup QIO quotas. "
+		      "SYS$DCLAST requires an available AST quota entry.\n", stderr);
 	exit(PTS_UNRESOLVED);
+}
+
+static void report_quotas(void)
+{
+	unsigned int status, i;
+	status = sys$getjpiw(EFN$C_ENF, 0, 0, quota_items, &quota_iosb, 0, 0);
+	if (!(status & 1))
+		native_failure("SYS$GETJPIW quotas", status);
+	if (!(quota_iosb.status & 1))
+		native_failure("SYS$GETJPIW quotas IOSB", quota_iosb.status);
+	for (i = 0; i < 4; ++i) {
+		if (quota_lengths[i] != sizeof(quota_values[i])) {
+			fputs("SYS$GETJPIW returned an incomplete quota value\n", stderr);
+			exit(PTS_UNRESOLVED);
+		}
+	}
+	printf("QIO quotas: ASTLM=%u AST_available=%u "
+	       "DIOLM=%u DIO_available=%u\n", quota_values[0], quota_values[1],
+	       quota_values[2], quota_values[3]);
+	fflush(stdout);
 }
 
 static void start_wait(void)
@@ -389,6 +434,7 @@ int test_main(int argc, char **argv)
 		      stderr);
 		return PTS_UNRESOLVED;
 	}
+	report_quotas();
 	producers = pts_control.threads / 2;
 	consumers = pts_control.threads - producers;
 	total = (unsigned long long)producers * pts_control.iterations;

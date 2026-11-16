@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright 2026 iamcamiel
+# X-2 CV Camiel Vanderhoeven 16-Nov-2026: Check native quota reporting failures.
 # X-1 CV Camiel Vanderhoeven 16-Nov-2026: QIO/AST service simulation.
 """Exercise the actual native QIO stress source with controlled host services.
 
@@ -34,11 +35,15 @@ HEADER = r'''
 #define SS$_NORMAL 1
 #define SS$_IVCHAN 12
 #define SS$_ABORT 44
-#define SS$_EXQUOTA 48
+#define SS$_EXQUOTA 28
 #define SS$_INSFMEM 52
 #define SS$_ENDOFFILE 56
 #define SS$_WASSET 9
 #define SS$_WASCLR 17
+#define JPI$_ASTLM 101
+#define JPI$_ASTCNT 102
+#define JPI$_DIOLM 103
+#define JPI$_DIOCNT 104
 #define IO$_READVBLK 33
 #define IO$_WRITEVBLK 34
 #define FAB$M_UFO 0x100
@@ -58,6 +63,7 @@ struct FAB {
 unsigned int sys$open(struct FAB *);
 unsigned int sys$create(struct FAB *);
 unsigned int sys$dassgn(unsigned short);
+unsigned int sys$getjpiw(int, void *, void *, void *, void *, void *, void *);
 unsigned int sys$qio(unsigned int, unsigned short, unsigned int, void *,
     void (*)(unsigned long long), unsigned long long, void *, unsigned int,
     unsigned int, unsigned int, unsigned int, unsigned int);
@@ -157,6 +163,31 @@ int pthread_cond_setname_np(pthread_cond_t *cv, const char *name, void *arg)
 { (void)cv; assert(name && !arg); return 0; }
 int pthread_mutex_setname_np(pthread_mutex_t *mutex, const char *name, void *arg)
 { (void)mutex; assert(name && !arg); return 0; }
+
+unsigned int sys$getjpiw(int event, void *pid, void *name, void *list,
+                         void *iosb, void *callback, void *argument)
+{
+    struct item { unsigned short length, code; void *buffer; unsigned short *returned; };
+    struct item *items = list;
+    unsigned int *status = iosb;
+    const unsigned short codes[] = {JPI$_ASTLM, JPI$_ASTCNT, JPI$_DIOLM, JPI$_DIOCNT};
+    const unsigned int values[] = {4096, 4088, 1024, 1020};
+    unsigned i;
+    assert(event == EFN$C_ENF && !pid && !name && !callback && !argument);
+    if (sim_mode == 8) { sim_inject(); return SS$_ABORT; }
+    for (i = 0; i < 4; ++i) {
+        assert(items[i].length == 4 && items[i].code == codes[i]);
+        assert(items[i].buffer && items[i].returned);
+        memcpy(items[i].buffer, &values[i], 4);
+        *items[i].returned = 4;
+    }
+    assert(!items[4].length && !items[4].code && !items[4].buffer && !items[4].returned);
+    status[0] = SS$_NORMAL;
+    if (sim_mode == 9) { sim_inject(); status[0] = 0x12340000; }
+    if (sim_mode == 10) { sim_inject(); *items[0].returned = 2; }
+    if (sim_mode == 11) { sim_inject(); *items[3].returned = 2; }
+    return SS$_NORMAL;
+}
 
 static int slot_for_cv(pthread_cond_t *cv)
 {
@@ -363,7 +394,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="pts-qio-sim-") as temp:
         root = Path(temp)
         (root / "QIO_STUB.H").write_text(HEADER)
-        for name in ("builtins.h", "rms.h", "ssdef.h", "starlet.h", "efndef.h", "iodef.h"):
+        for name in ("builtins.h", "rms.h", "ssdef.h", "starlet.h", "efndef.h", "iodef.h", "jpidef.h"):
             (root / name).write_text('#include "QIO_STUB.H"\n')
         (root / "PTS_ORIGINAL.H").write_bytes((SUITE / "include/posixtest.h").read_bytes())
         (root / "sim.c").write_text(PREFIX + STUBS)
@@ -382,7 +413,7 @@ def main():
         # These select the source's allocation branches, not the host pointer ABI.
         checks = [(32, 0, 8, 80, 31), (64, 0, 8, 800, 31), (64, 0, 3, 40, 7)]
         checks.extend((64, mode, 8, 80, 31)
-                      for mode in range(1, 8))
+                      for mode in range(1, 12))
         if args.large:
             checks.append((64, 0, 600, 2, 31))
         for number, (pointer_mode, mode, threads, iterations, seed) in enumerate(checks):
@@ -408,11 +439,19 @@ def main():
                 if result.returncode:
                     raise AssertionError(result.stdout + result.stderr)
                 assert "SIM callbacks=" in result.stdout, result.stdout
+                assert "QIO quotas: ASTLM=4096 AST_available=4088 DIOLM=1024 DIO_available=1020" in result.stdout
             elif mode == 6:
                 assert timed_out, "Missing completion unexpectedly allowed the test to finish"
             elif not timed_out:
                 assert f"SIM injected mode={mode}" in result.stderr, result.stderr
                 assert result.returncode in (1, 2), result.stdout + result.stderr
+                if mode >= 8:
+                    assert result.returncode == 2
+                    assert "SYS$GETJPIW" in result.stderr
+                    if mode == 9:
+                        assert "12340000" in result.stderr
+                    assert "QIO workload:" not in result.stdout
+                    assert not (directory / "PTS_QIO.DAT;1").exists()
             print(f"PASS: QIO simulation allocation={pointer_mode}, "
                   f"mode={mode}, workers={threads}")
     print("PASS: native test control flow; not OpenVMS ABI/AST validation")
