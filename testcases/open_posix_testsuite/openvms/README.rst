@@ -94,7 +94,7 @@ node's dump settings. Their output stays under the normal results tree.
 
 The complete interface is::
 
-    @RUN [repeats [seed [threads [iterations]]]]
+    @RUN [repeats [seed [threads [iterations [CONTINUE|STOP_ON_CRASH]]]]]
 
 Defaults are one repetition, seed 1, eight workers, and 2000 iterations.
 For the first target run, use a short workload::
@@ -104,6 +104,23 @@ For the first target run, use a short workload::
 For repeated stress testing::
 
     $ @RUN 100 12345 32 10000
+
+To stop the entire run at the first CRASH and print that case's stderr::
+
+    $ @RUN 100 12345 32 10000 STOP_ON_CRASH
+
+The option is case-insensitive. Omitting it, or specifying CONTINUE, keeps
+the existing behaviour. A CRASH is an abnormal child-process exit; FAIL,
+UNRESOLVED, and TIMEOUT do not trigger this option. The runner first records
+the crash in SUMMARY.CSV, then prints the case/repetition, native status,
+STDERR.LOG path and contents, and totals for the completed cases. It starts
+no further cases or repetitions, and returns a failure status. The original
+logs and any dumps remain in the case directory. Empty or unavailable stderr
+is identified explicitly. Output is read after child termination, with no
+extra logging during the test workload.
+
+After updating the sources, rebuild using ``@BUILD`` with your selected
+profile so that PTS_RUNNER.EXE includes this option.
 
 Repetitions apply to the entire selected manifest. The seed advances between
 repetitions. Worker and iteration settings apply to supplemental tests;
@@ -123,6 +140,7 @@ To invoke the supervisor directly with a custom manifest::
 
     $ PTS_RUNNER :== $DISK:[PATH.TO.OPENVMS.BUILD]PTS_RUNNER.EXE
     $ PTS_RUNNER CASES.DAT "[.RESULTS]" 1 12345 8 2000
+    $ PTS_RUNNER CASES.DAT "[.RESULTS]" 100 12345 8 2000 STOP_ON_CRASH
 
 Replace the device/directory. The output directory must already exist.
 Custom manifests use the same eight-column format and reference images already
@@ -145,12 +163,19 @@ Build all test images as usual, then select just this case::
 
 The interface is::
 
-    @RUN_QIO [repeats [seed [threads [iterations [timeout_seconds]]]]]
+    @RUN_QIO [repeats [seed [threads [iterations [timeout_seconds [CONTINUE|STOP_ON_CRASH]]]]]]
 
 Defaults are 1 repetition, seed 1, 8 workers, 2000 submissions per submitting
 worker, and a 3600-second deadline per repetition. Timeouts may be 1 through
 86400 seconds. RUN_QIO creates a fresh one-case manifest under RESULTS;
 the supervisor also saves it with the run. CASES.DAT remains unchanged.
+
+For repeated QIO stress that stops and prints stderr on the first CRASH::
+
+    $ @RUN_QIO 100 12345 32 10000 3600 STOP_ON_CRASH
+
+The sixth argument has the same semantics as the fifth argument to RUN.
+It defaults to CONTINUE; the fifth argument remains the per-repetition timeout.
 
 The requested workers are split between submitters and waiters: half,
 rounded down, submit requests; the rest wait for them. Every request is
@@ -365,3 +390,14 @@ hashes. Label newly constructed tests as supplemental.
 
 Git author: iamcamiel <iamcamiel@gmail.com>.
 Revision-history initials/name: CV, Camiel Vanderhoeven.
+
+For changes to the supervisor, run these developer checks on a POSIX host
+with Python 3 and a C compiler, from the ``OPENVMS`` directory::
+
+    python3 TOOLS/CHECK_RUNNER.py
+    python3 TOOLS/CHECK_NATIVE.py
+
+CHECK_RUNNER executes real child processes to verify stop-on-crash, stderr
+replay, retained results, and continuation after other classifications.
+CHECK_NATIVE compiles the OpenVMS supervisor branch against system-service
+stubs. These checks do not replace native builds and execution on OpenVMS.

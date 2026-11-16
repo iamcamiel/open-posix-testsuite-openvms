@@ -1,6 +1,7 @@
 $! SPDX-License-Identifier: GPL-2.0-or-later
+$! X-2 CV Camiel Vanderhoeven 16-Nov-2026: Optional stop and stderr on crash.
 $! X-1 CV Camiel Vanderhoeven 16-Nov-2026: Isolated QIO/AST stress runs.
-$! @RUN_QIO [repeats [seed [threads [iterations [timeout_seconds]]]]
+$! @RUN_QIO [repeats [seed [threads [iterations [timeout_seconds [CONTINUE|STOP_ON_CRASH]]]]]]
 $ saved_default = f$environment("DEFAULT")
 $ input_open = 0
 $ output_open = 0
@@ -14,6 +15,10 @@ $ if p2 .eqs. "" then p2 = "1"
 $ if p3 .eqs. "" then p3 = "8"
 $ if p4 .eqs. "" then p4 = "2000"
 $ if p5 .eqs. "" then p5 = "3600"
+$ if p6 .eqs. "" then p6 = "CONTINUE"
+$ p6 = f$edit(p6,"UPCASE")
+$ if p6 .nes. "CONTINUE" .and. p6 .nes. "STOP_ON_CRASH" then goto usage
+$ if p7 .nes. "" .or. p8 .nes. "" then goto usage
 $! Validate before using the timeout in the generated manifest.
 $ digit = 0
 $ if f$length(p5) .gt. 5 then goto usage
@@ -53,7 +58,7 @@ $ close selected
 $ output_open = 0
 $ build_dir = f$extract(0,f$length(here)-1,here) + ".BUILD]"
 $ runner := $'build_dir'PTS_RUNNER.EXE
-$ runner 'manifest' "[.RESULTS]" 'p1' 'p2' 'p3' 'p4'
+$ runner 'manifest' "[.RESULTS]" 'p1' 'p2' 'p3' 'p4' "''p6'"
 $ run_status = $status
 $ set default 'saved_default'
 $ exit 'run_status'
@@ -61,7 +66,7 @@ $missing:
 $ write sys$error "PT_QIO_AST is absent from CASES.DAT. Update and rebuild the suite."
 $ goto failed
 $usage:
-$ write sys$error "Usage: @RUN_QIO [repeats [seed [threads [iterations [timeout_seconds]]]]]"
+$ write sys$error "Usage: @RUN_QIO [repeats [seed [threads [iterations [timeout_seconds [CONTINUE|STOP_ON_CRASH]]]]]]"
 $ write sys$error "Timeout must be an integer from 1 through 86400 seconds."
 $failed:
 $ failure_status = $status

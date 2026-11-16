@@ -26,7 +26,7 @@ The build interface is::
 
 The run interface is::
 
-    @RUN [repeats [seed [threads [iterations]]]]
+    @RUN [repeats [seed [threads [iterations [CONTINUE|STOP_ON_CRASH]]]]]
 
 Examples::
 
@@ -43,9 +43,20 @@ only that case, including an aggressive 600-worker workload::
     $ @RUN_QIO 10 12345 32 10000 3600
     $ @RUN_QIO 1 12345 600 10000 7200
 
-The final argument is the external timeout in seconds per repetition.
+The fifth argument is the external timeout in seconds per repetition.
 600 workers are not equivalent to 600 database users; start with the smaller
 run and check the detailed instructions for quotas, workload size, and limits.
+
+Both procedures accept an optional final ``STOP_ON_CRASH`` argument::
+
+    $ @RUN 100 12345 32 10000 STOP_ON_CRASH
+    $ @RUN_QIO 100 12345 32 10000 3600 STOP_ON_CRASH
+
+This stops the entire run after the first case classified CRASH and prints
+that case's STDERR.LOG. Its summary row, logs, and any dumps are retained.
+Omitting the option (or specifying CONTINUE) preserves the existing behaviour.
+FAIL, UNRESOLVED, and TIMEOUT do not trigger this option. After updating the
+sources, rerun ``@BUILD 64 BOTH`` (or your chosen build profile) before using it.
 
 Defaults are 64-bit test pointers, multiple kernel threads plus upcalls,
 one repetition, seed 1, eight workers, and 2000 iterations. Run one build
