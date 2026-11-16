@@ -1,9 +1,11 @@
 #ifdef __VMS
-#pragma module PTS_RUNNER "X-4"
+#pragma module PTS_RUNNER "X-5"
 #endif
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Copyright 2026 iamcamiel
  * Copyright 2026 VMS Software, Inc.
+ * X-5  CV  Camiel Vanderhoeven  16-Nov-2026: Optionally stop after a crash
+ *     and display the completed child's stderr while retaining its results.
  * X-4  CV  Camiel Vanderhoeven  16-Nov-2026: Pass parent AST/direct-I/O limits
  *     explicitly to child processes instead of accepting small PQL defaults.
  * X-1  CV  Camiel Vanderhoeven  15-Nov-2026: Isolated native test runner.
@@ -17,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <ctype.h>
 #include <time.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -428,6 +431,59 @@ static int copy_file(const char *source, const char *target)
 	return ok ? 0 : -1;
 }
 
+static int option_equal(const char *value, const char *option)
+{
+	for (; *value && *option; value++, option++)
+		if (toupper((unsigned char)*value) != (unsigned char)*option)
+			return 0;
+	return !*value && !*option;
+}
+
+/* Replay only after the supervisor has confirmed child termination. Text
+ * mode preserves the normal OpenVMS record-to-newline translation. Keep
+ * the saved file and CRASH classification even if replay is unavailable.
+ */
+static void print_crash_stderr(const char *id, unsigned long repeat,
+		unsigned long status, const char *path)
+{
+	FILE *in;
+	char buffer[4096];
+	size_t n;
+	int have_data = 0, last = '\n', read_error = 0, write_error = 0;
+
+	fflush(stdout);
+	fprintf(stderr, "Stopping after CRASH: %s repeat=%lu native_status=0x%08lx\n",
+		id, repeat, status);
+	fprintf(stderr, "----- BEGIN STDERR.LOG: %s -----\n", path);
+	in = fopen(path, "r");
+	if (!in) {
+		fprintf(stderr, "Cannot open stderr log: %s\n", strerror(errno));
+	} else {
+		while ((n = fread(buffer, 1, sizeof(buffer), in)) != 0) {
+			have_data = 1;
+			last = (unsigned char)buffer[n - 1];
+			if (fwrite(buffer, 1, n, stderr) != n) {
+				write_error = 1;
+				break;
+			}
+		}
+		if (ferror(in))
+			read_error = errno;
+		if (have_data && last != '\n')
+			fputc('\n', stderr);
+		if (ferror(in))
+			fprintf(stderr, "Error reading stderr log: %s\n", strerror(read_error));
+		else if (!have_data)
+			fputs("(stderr is empty)\n", stderr);
+		if (fclose(in))
+			fprintf(stderr, "Error closing stderr log: %s\n", strerror(errno));
+		if (write_error)
+			fputs("Error displaying stderr log; see the saved file.\n", stderr);
+	}
+	fputs("----- END STDERR.LOG -----\n", stderr);
+	fflush(stderr);
+}
+
 int main(int argc, char **argv)
 {
 	char root[PTS_PATH_MAX], output_root[PTS_PATH_MAX], build[PTS_PATH_MAX];
@@ -440,20 +496,24 @@ int main(int argc, char **argv)
 	unsigned long repeats = 1, seed = 1, threads = 8, iterations = 2000;
 	unsigned long repeat, bad = 0, passed = 0, other = 0;
 	size_t i;
-	int code, rc = EXIT_FAILURE;
+	int code, rc = EXIT_FAILURE, stop_on_crash = 0;
 	const char *name;
 	double start, elapsed;
 	const char *manifest = argc > 1 ? argv[1] : "CASES.DAT";
 	const char *results = argc > 2 ? argv[2] : "RESULTS";
 
-	if (argc > 7 ||
+	if (argc > 8 ||
 	    (argc > 3 && pts_number(argv[3], 1, 100000, &repeats)) ||
 	    (argc > 4 && pts_number(argv[4], 1, 2147483647UL, &seed)) ||
 	    (argc > 5 && pts_number(argv[5], 1, PTS_MAX_THREADS, &threads)) ||
-	    (argc > 6 && pts_number(argv[6], 1, 10000000UL, &iterations))) {
-		fprintf(stderr, "Usage: PTS_RUNNER [manifest [results_dir [repeats [seed [threads [iterations]]]]]]\n");
+	    (argc > 6 && pts_number(argv[6], 1, 10000000UL, &iterations)) ||
+	    (argc > 7 && !option_equal(argv[7], "STOP_ON_CRASH") &&
+	     !option_equal(argv[7], "CONTINUE"))) {
+		fprintf(stderr, "Usage: PTS_RUNNER [manifest [results_dir [repeats [seed [threads [iterations [CONTINUE|STOP_ON_CRASH]]]]]]]\n");
 		return EXIT_FAILURE;
 	}
+	if (argc > 7)
+		stop_on_crash = option_equal(argv[7], "STOP_ON_CRASH");
 	if (read_cases(manifest) || !current_directory(root, sizeof(root))) {
 		fprintf(stderr, "Cannot read a valid case manifest or current directory\n");
 		return EXIT_FAILURE;
@@ -564,10 +624,15 @@ int main(int argc, char **argv)
 			fputc('\n', summary);
 			if (fflush(summary))
 				goto finish;
+			if (stop_on_crash && !strcmp(name, "CRASH")) {
+				print_crash_stderr(ctl.id, repeat, result.native_status, error);
+				goto completed;
+			}
 			if (result.error)
 				goto finish;
 		}
 	}
+completed:
 	printf("Totals: PASS=%lu NONPASS=%lu UNSUPPORTED_OR_UNTESTED=%lu\n", passed, bad, other);
 	rc = bad || !passed ? EXIT_FAILURE : EXIT_SUCCESS;
 finish:
