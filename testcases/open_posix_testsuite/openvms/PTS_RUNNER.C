@@ -1,6 +1,10 @@
+#ifdef __VMS
+#pragma module PTS_RUNNER "X-3"
+#endif
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Copyright 2026 iamcamiel
  * X-1  CV  Camiel Vanderhoeven  15-Nov-2026: Isolated native test runner.
+ * X-3  CV  Camiel Vanderhoeven  16-Nov-2026: Support up to 1024 workers.
  * X-2  CV  Camiel Vanderhoeven  15-Nov-2026: Reserve unique run directories.
  */
 #ifndef __VMS
@@ -375,7 +379,7 @@ int main(int argc, char **argv)
 	if (argc > 7 ||
 	    (argc > 3 && pts_number(argv[3], 1, 100000, &repeats)) ||
 	    (argc > 4 && pts_number(argv[4], 1, 2147483647UL, &seed)) ||
-	    (argc > 5 && pts_number(argv[5], 1, 256, &threads)) ||
+	    (argc > 5 && pts_number(argv[5], 1, PTS_MAX_THREADS, &threads)) ||
 	    (argc > 6 && pts_number(argv[6], 1, 10000000UL, &iterations))) {
 		fprintf(stderr, "Usage: PTS_RUNNER [manifest [results_dir [repeats [seed [threads [iterations]]]]]]\n");
 		return EXIT_FAILURE;

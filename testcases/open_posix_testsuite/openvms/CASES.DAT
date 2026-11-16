@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
+# X-2 CV Camiel Vanderhoeven 16-Nov-2026: Add native QIO/AST stress.
 # X-1 CV Camiel Vanderhoeven 15-Nov-2026: Initial runnable subset.
 # id|source(relative to suite)|timeout_seconds|category|asserted_apis|assertion|upstream_blob|state
 PT_CREATE_1_1|conformance/interfaces/pthread_create/1-1.c|30|conformance|pthread_create|upstream_assertion_1|141503f3a257e4abb10349047faf1a913b5cecdd|ready
@@ -30,3 +31,4 @@ PT_ONCE_TSD|openvms/LOCAL/PT_ONCE_TSD.C|120|regression|pthread_once,pthread_key_
 PT_RWLOCK|openvms/LOCAL/PT_RWLOCK.C|120|stress|pthread_rwlockattr_init,pthread_rwlockattr_destroy,pthread_rwlockattr_getpshared,pthread_rwlock_init,pthread_rwlock_destroy,pthread_rwlock_rdlock,pthread_rwlock_tryrdlock,pthread_rwlock_wrlock,pthread_rwlock_trywrlock,pthread_rwlock_unlock|reader_writer_exclusion|local|ready
 PT_MUTEX_STRESS|openvms/LOCAL/PT_MUTEX_STRESS.C|120|stress|pthread_mutex_lock,pthread_mutex_unlock|contended_counter_and_invariants|local|ready
 PT_CV_CHURN|openvms/LOCAL/PT_CV_CHURN.C|300|stress|pthread_cond_init,pthread_cond_wait,pthread_cond_signal,pthread_cond_destroy|legal_concurrent_condition_variable_lifetimes|local|ready
+PT_QIO_AST|openvms/LOCAL/PT_QIO_AST.C|300|stress|pthread_cond_signal_int_np,pthread_cond_wait|qio_ast_completion_cross_thread_wait_and_slot_reuse|local|ready

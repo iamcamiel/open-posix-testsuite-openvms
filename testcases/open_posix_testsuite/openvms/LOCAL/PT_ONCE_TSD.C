@@ -1,5 +1,11 @@
+#ifdef __VMS
+#pragma module PT_ONCE_TSD "X-2"
+#endif
 /* SPDX-License-Identifier: GPL-2.0-or-later */
-/* Copyright 2026 iamcamiel; X-1 CV Camiel Vanderhoeven 15-Nov-2026. */
+/* Copyright 2026 iamcamiel
+ * X-2 CV Camiel Vanderhoeven 16-Nov-2026: Match the runner worker limit.
+ * X-1 CV Camiel Vanderhoeven 15-Nov-2026: Initial supplemental test.
+ */
 #include "PTS_CHECK.H"
 static pthread_once_t once = PTHREAD_ONCE_INIT;
 static pthread_key_t key;
@@ -41,8 +47,8 @@ static void *worker(void *arg)
 }
 int test_main(int argc, char **argv)
 {
-	struct worker_state states[256];
-	pthread_t threads[256];
+	struct worker_state states[PTS_MAX_THREADS];
+	pthread_t threads[PTS_MAX_THREADS];
 	unsigned long i;
 	void *value;
 	(void)argc; (void)argv;

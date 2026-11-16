@@ -1,5 +1,11 @@
+#ifdef __VMS
+#pragma module PT_COND_BROADCAST "X-2"
+#endif
 /* SPDX-License-Identifier: GPL-2.0-or-later */
-/* Copyright 2026 iamcamiel; X-1 CV Camiel Vanderhoeven 15-Nov-2026. */
+/* Copyright 2026 iamcamiel
+ * X-2 CV Camiel Vanderhoeven 16-Nov-2026: Match the runner worker limit.
+ * X-1 CV Camiel Vanderhoeven 15-Nov-2026: Initial supplemental test.
+ */
 #include "PTS_CHECK.H"
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t ready_cv = PTHREAD_COND_INITIALIZER;
@@ -20,7 +26,7 @@ static void *waiter(void *unused)
 }
 int test_main(int argc, char **argv)
 {
-	pthread_t threads[256];
+	pthread_t threads[PTS_MAX_THREADS];
 	unsigned long i;
 	(void)argc; (void)argv;
 	CHECK(pthread_mutex_lock(&mutex));

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright 2026 iamcamiel
+# X-2 CV Camiel Vanderhoeven 16-Nov-2026: QIO/AST coverage and portable LF output.
 # X-1 CV Camiel Vanderhoeven 15-Nov-2026: public API coverage inventory.
 """Generate coverage from a reference pthread.h; never copy the header."""
 import argparse
@@ -51,7 +52,7 @@ def main():
         for api in set(re.findall(r"\b(pthread_\w+)\s*\(", src)):
             exercised.setdefault(api, []).append(row["id"])
     with (PORT / "API_COVERAGE.CSV").open("w", newline="") as out:
-        writer = csv.writer(out)
+        writer = csv.writer(out, lineterminator="\n")
         writer.writerow(["api", "header_status", "coverage",
                          "asserted_cases", "exercised_cases", "notes"])
         for api in sorted(apis | set(ABSENT)):
@@ -64,17 +65,21 @@ def main():
                         "exercised_only" if incidental else "planned")
             if state != "declared_vms":
                 coverage = "excluded"
-            note = ("VMS extension; requires dedicated semantics review"
+            note = ("Native QIO/AST stress; target validation pending"
+                    if api == "pthread_cond_signal_int_np" and covered else
+                    "VMS extension; requires dedicated semantics review"
                     if api.endswith("_np") else
                     "No claim of complete assertion coverage or VMS runtime validation")
             writer.writerow([api, state, coverage, ",".join(covered),
                              ",".join(incidental), note])
-    (PORT / "HEADER_REFERENCE.TXT").write_text(
+    reference = (
         "Reference: baseos/PTHREAD/PTHREAD.H (API names only; header not vendored)\n"
         f"SHA256: {hashlib.sha256(raw).hexdigest()}\n"
         "Classification: declarations plus explicit UNIX-only/obsolete exclusions.\n"
         "not_declared means absent from this header, not a runtime ENOTSUP claim.\n"
         "Verify the deployment node's headers and optional features separately.\n")
+    with (PORT / "HEADER_REFERENCE.TXT").open("w", newline="\n") as out:
+        out.write(reference)
     print(f"Inventoried {len(apis)} header interfaces and {len(set(ABSENT)-apis)} "
           "optional interfaces absent from the reference header")
 

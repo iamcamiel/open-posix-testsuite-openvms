@@ -1,6 +1,10 @@
+#ifdef __VMS
+#pragma module PTS_PORT "X-3"
+#endif
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Copyright 2026 iamcamiel
  * X-1  CV  Camiel Vanderhoeven  15-Nov-2026: Strict control/result protocol.
+ * X-3  CV  Camiel Vanderhoeven  16-Nov-2026: Support up to 1024 workers.
  * X-2  CV  Camiel Vanderhoeven  15-Nov-2026: Retry existing run names.
  */
 #include <stdio.h>
@@ -86,7 +90,7 @@ int pts_read_control(FILE *in, struct pts_control *ctl)
 	    line(in, buf, sizeof(buf)) ||
 	    pts_number(buf, 1, 2147483647UL, &ctl->seed) ||
 	    line(in, buf, sizeof(buf)) ||
-	    pts_number(buf, 1, 256, &ctl->threads) ||
+	    pts_number(buf, 1, PTS_MAX_THREADS, &ctl->threads) ||
 	    line(in, buf, sizeof(buf)) ||
 	    pts_number(buf, 1, 10000000UL, &ctl->iterations) ||
 	    fgetc(in) != EOF)
