@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright 2026 iamcamiel
+# X-2 CV Camiel Vanderhoeven 16-Nov-2026: Check the expanded worker limit.
 # X-1 CV Camiel Vanderhoeven 15-Nov-2026: native control-flow simulation.
 """Compile native supervisor branch against service stubs, not the VMS ABI."""
 import os
@@ -160,6 +161,21 @@ static void protocol_checks(void)
     assert(!pts_read_control(out,&read));
     assert(!strcmp(read.id,c.id) && read.iterations==200);
     fclose(out);
+    c.threads=600;
+    out=tmpfile();assert(out);
+    assert(!pts_write_control(out,&c));rewind(out);
+    assert(!pts_read_control(out,&read) && read.threads==600);
+    fclose(out);
+    c.threads=PTS_MAX_THREADS;
+    out=tmpfile();assert(out);
+    assert(!pts_write_control(out,&c));rewind(out);
+    assert(!pts_read_control(out,&read) && read.threads==PTS_MAX_THREADS);
+    fclose(out);
+    c.threads=PTS_MAX_THREADS+1;
+    out=tmpfile();assert(out);
+    assert(!pts_write_control(out,&c));rewind(out);
+    assert(pts_read_control(out,&read));
+    fclose(out);
     assert(pts_number("-1",1,256,&number));
     assert(pts_number("257",1,256,&number));
     assert(pts_number("1x",1,256,&number));
@@ -214,7 +230,8 @@ def main():
     subprocess.run([os.environ.get("CC", "cc"), "-std=c99",
                     "-D_POSIX_C_SOURCE=200809L", "-D__VMS",
                     "-D__INITIAL_POINTER_SIZE=32", "-D__int64=long long",
-                    "-Wall", "-Wextra", "-Werror", "-I"+str(stubs), "-I"+str(PORT),
+                    "-Wall", "-Wextra", "-Werror", "-Wno-unknown-pragmas",
+                    "-I"+str(stubs), "-I"+str(PORT),
                     "-x", "c", str(stubs/"NATIVE_TEST.C"), str(PORT/"PTS_PORT.C"),
                     "-o", str(binary)], check=True, timeout=60)
     subprocess.run([str(binary)], cwd=stubs, check=True, timeout=10)

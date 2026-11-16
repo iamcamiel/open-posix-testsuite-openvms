@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Copyright 2026 iamcamiel
  * X-1  CV  Camiel Vanderhoeven  15-Nov-2026: Initial OpenVMS port.
+ * X-3  CV  Camiel Vanderhoeven  16-Nov-2026: Support up to 1024 workers.
  * X-2  CV  Camiel Vanderhoeven  15-Nov-2026: Collision-safe run directories.
  */
 #ifndef PTS_PORT_H
@@ -9,6 +10,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#define PTS_MAX_THREADS 1024UL
 #define PTS_PATH_MAX 1024
 #define PTS_ID_MAX 64
 #define PTS_TOKEN_MAX 64

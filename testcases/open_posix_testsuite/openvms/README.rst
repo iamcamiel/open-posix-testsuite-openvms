@@ -114,6 +114,7 @@ interleavings.
 Choose settings appropriate for the node's resources. Condition-variable churn
 can have approximately two pthreads per worker active, plus the initial thread.
 Setup/resource errors are UNRESOLVED rather than silently reducing the workload.
+The runner accepts 1 through 1024 workers. The QIO case requires at least two.
 
 Each case has a timeout in CASES.DAT. Increase it deliberately for substantially
 larger workloads. A timeout is a diagnostic failure, not proof of a library bug.
@@ -126,6 +127,90 @@ To invoke the supervisor directly with a custom manifest::
 Replace the device/directory. The output directory must already exist.
 Custom manifests use the same eight-column format and reference images already
 built in ``[.BUILD]``.
+
+QIO completion and AST stress
+-----------------------------
+
+``PT_QIO_AST`` is an original supplemental test of the I/O pattern described
+by Mimer. It uses public OpenVMS services and pthread interfaces; it contains
+no Mimer implementation code. The normal manifest runs a short instance with
+a 300-second external deadline. On non-OpenVMS hosts it reports UNSUPPORTED.
+
+Build all test images as usual, then select just this case::
+
+    $ @BUILD 64 BOTH
+    $ @RUN_QIO 1 12345 8 200 300
+    $ @RUN_QIO 10 12345 32 10000 3600
+    $ @RUN_QIO 1 12345 600 10000 7200
+
+The interface is::
+
+    @RUN_QIO [repeats [seed [threads [iterations [timeout_seconds]]]]]
+
+Defaults are 1 repetition, seed 1, 8 workers, 2000 submissions per submitting
+worker, and a 3600-second deadline per repetition. Timeouts may be 1 through
+86400 seconds. RUN_QIO creates a fresh one-case manifest under RESULTS;
+the supervisor also saves it with the run. CASES.DAT remains unchanged.
+
+The requested workers are split between submitters and waiters: half,
+rounded down, submit requests; the rest wait for them. Every request is
+awaited by a different thread from its submitter. Thus 600 means 300 submitting
+plus 300 waiting pthreads, in addition to the initial thread and runtime
+threads. The request count is ``floor(threads / 2) * iterations`` per repetition.
+The 600/10000 example submits 3,000,000 requests. It does not create 600 kernel
+threads explicitly, and does not represent 600 full database sessions.
+
+The workload uses:
+
+* 128 reusable slots, each with a persistent CV, mutex, IOSB and 4 KiB buffer.
+  The 64-bit build uses _malloc64 for the slot pool, exercising long pointers
+  like those in the Mimer dump; the startup output records its actual address.
+  The 32-bit build uses ordinary allocation. RMS control structures remain
+  in 32-bit address space as required by their pointer fields.
+* Asynchronous disk SYS$QIO on an exclusively created private scratch file in
+  the child case directory. Each slot owns a separate disk extent. Successful
+  writes are followed by reads that verify their contents.
+* An AST that publishes completion and calls pthread_cond_signal_int_np without
+  taking the slot mutex. Waiters use a predicate loop with pthread_cond_wait;
+  event flags and SYS$SYNCH do not replace the CV wakeup path.
+* Synthetic early request errors completed by SYS$DCLAST, matching Mimer's
+  error-completion mechanism. Every sixteenth request uses this path, and
+  DCLAST submission status is checked.
+* Both issue-before-handoff and handoff-before-issue ordering. The latter is a
+  deliberate stress variation to encourage a waiter to block before completion.
+  The first request waits for its consumer to enter the wait loop before issue,
+  ensuring even a short successful run calls pthread_cond_wait on an I/O slot.
+* Rapid reuse, independently queued work, IOSB/byte-count checks and data checks.
+  The startup/summary output identifies the workload and observed wait paths.
+
+There is no per-I/O formatted logging. Each AST also publishes a final marker
+so the harness cannot reuse a slot while the callback is still updating its
+diagnostic fields. A waiter checks this marker only after its CV predicate has
+completed; it cannot rescue a missing CV wakeup. This extra lifetime check is
+a test-harness difference from the supplied Mimer code.
+
+Use BOTH first: it enables upcalls and multiple kernel threads, as needed to
+exercise AST delivery alongside multi-VP scheduling. Run separate builds with
+32-bit and 64-bit pointers, and optionally KERNEL, UPCALLS and NONE as comparison
+profiles. Retain each build's listings/maps and actual RTL identification.
+Native Alpha and IA64 builds also need validation; host simulations do not
+validate their compiler, pointer modes, or service ABI.
+
+Large runs require enough process/thread address space, page-file quota and
+AST/buffered-I/O quotas for the outstanding requests and runtime activity.
+Workers request 512 KiB stacks, so 600 workers request about 300 MiB of worker
+stack address space before guards and runtime overhead. Quota failures are
+reported as UNRESOLVED, never as a successful reduced workload. Watch the
+reported native status if setup or submission fails. The scratch file is
+small and repeatedly reused; this is primarily synchronization pressure,
+not a recreation of the production disk/cache or database workload.
+
+A successful long run does not rule out the production defect. In particular,
+600 active database users need not correspond to 600 pthreads. Test both
+moderate worker counts near the server's actual thread count and higher counts,
+vary seeds and repeats, and compare installed and candidate RTL images. The
+external supervisor reports TIMEOUT or CRASH without relying on pthreads to
+remain functional. Preserve the case directory, logs and dumps on failure.
 
 Process isolation and watchdog
 ------------------------------
@@ -238,9 +323,11 @@ Supplemental tests cover thread lifetimes; recursive/error-check mutexes;
 condition handoff, broadcast and timeout; deferred cancellation with mutex
 reacquisition; concurrent once initialization and TSD destructors; reader/writer
 exclusion; mutex contention; and legal concurrent condition-variable lifetimes.
+The QIO/AST case adds partial native coverage of interrupt-safe CV signalling
+with persistent I/O slots, cross-thread waiting, and slot reuse.
 
 Planned work includes the full attributes/error matrix, scheduling/priorities,
-additional cancellation modes and points, stack/guard boundaries, AST delivery,
+additional cancellation modes and points, stack/guard boundaries, other AST cases,
 detached startup, native exception/unwind behavior, register/FP preservation,
 CPU-time accounting, remaining _np extensions, and target-side primitive tests.
 
