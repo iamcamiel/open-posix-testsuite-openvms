@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright 2026 iamcamiel
+# X-3 CV Camiel Vanderhoeven 16-Nov-2026: Verify explicit child quota limits
+# and GETJPI service, completion, and returned-length failure handling.
 # X-2 CV Camiel Vanderhoeven 16-Nov-2026: Check the expanded worker limit.
 # X-1 CV Camiel Vanderhoeven 15-Nov-2026: native control-flow simulation.
 """Compile native supervisor branch against service stubs, not the VMS ABI."""
@@ -28,6 +30,12 @@ struct accdef {
 #define DSC$K_DTYPE_T 14
 #define DSC$K_CLASS_S 1
 #define DVI$_UNIT 12
+#define JPI$_ASTLM 13
+#define JPI$_DIOLM 14
+#define PQL$_LISTEND 0
+#define PQL$_ASTLM 1
+#define PQL$_DIOLM 5
+#define EFN$C_ENF 128
 #define SS$_NORMAL 1
 #define SS$_ENDOFFILE 16
 #define SS$_BADPARAM 20
@@ -39,13 +47,14 @@ unsigned int sys$gettim(unsigned long long *);
 unsigned int sys$crembx(int, unsigned short *, unsigned int, unsigned int,
                         int, int, int, int);
 unsigned int sys$getdviw(int, unsigned short, int, void *, void *, int, int, int);
+unsigned int sys$getjpiw(int, int, int, void *, void *, int, int);
 unsigned int lib$get_ef(unsigned int *);
 unsigned int lib$free_ef(unsigned int *);
 unsigned int sys$clref(unsigned int);
 unsigned int sys$setimr(unsigned int, const long long *, int, unsigned int, int);
 unsigned int sys$cantim(unsigned int, int);
 unsigned int sys$creprc(unsigned int *, void *, void *, void *, void *,
-                       int, int, int, int, int, unsigned short, int);
+                       int, void *, int, int, int, unsigned short, int);
 unsigned int sys$qiow(int, unsigned short, unsigned int, void *, int, int,
                       void *, unsigned int, int, int, int, int);
 unsigned int sys$readef(unsigned int, unsigned int *);
@@ -71,6 +80,7 @@ static char *host_cwd(char *b, size_t n) { return getcwd(b, n); }
 #undef main
 #undef getcwd
 static int mode, killed, assigned, freed, released, cancelled, timer_calls;
+static int queried, created;
 unsigned int sys$gettim(unsigned long long *v) { *v=10000000; return 1; }
 unsigned int sys$crembx(int a, unsigned short *c, unsigned int b, unsigned int d,
                        int e,int f,int g,int h)
@@ -87,6 +97,27 @@ unsigned int sys$getdviw(int a,unsigned short c,int d,void *items,void *sb,
     ((struct io_status *)sb)->status=mode==7?SS$_ABORT:SS$_NORMAL;
     return 1;
 }
+unsigned int sys$getjpiw(int e,int p,int n,void *list,void *sb,int a,int b)
+{
+    struct item3 *items=list;
+    struct query_status *s=sb;
+    assert(e==EFN$C_ENF && !p && !n && !a && !b);
+    queried++;
+    assert(items[0].code==JPI$_ASTLM && items[0].length==4);
+    assert(items[1].code==JPI$_DIOLM && items[1].length==4);
+    assert(items[0].returned && items[1].returned);
+    assert(!*items[0].returned && !*items[1].returned);
+    assert(!items[2].length && !items[2].code && !items[2].buffer &&
+           !items[2].returned);
+    assert(!s->status);
+    if(mode==8)return SS$_ABORT;
+    s->status=mode==9?0x12340000U:SS$_NORMAL;
+    *(unsigned int *)items[0].buffer=0x12345U;
+    *(unsigned int *)items[1].buffer=0x23456U;
+    *items[0].returned=mode==10?2:4;
+    *items[1].returned=mode==11?0:4;
+    return SS$_NORMAL;
+}
 unsigned int lib$get_ef(unsigned int *e) { *e=35; return 1; }
 unsigned int lib$free_ef(unsigned int *e) { assert(*e==35);freed++;return 1; }
 unsigned int sys$clref(unsigned int e) { assert(e==35);return 1; }
@@ -99,10 +130,15 @@ unsigned int sys$setimr(unsigned int e,const long long *d,int a,
 unsigned int sys$cantim(unsigned int r,int a)
 { (void)a;assert(r==1);cancelled++;return 1; }
 unsigned int sys$creprc(unsigned int *p,void *i,void *a,void *b,void *c,
-                       int d,int e,int f,int g,int h,unsigned short m,int flags)
+                       int d,void *q,int f,int g,int h,unsigned short m,int flags)
 {
-    (void)i;(void)a;(void)b;(void)c;(void)d;(void)e;(void)f;(void)g;(void)h;
+    const unsigned char expected[]={PQL$_ASTLM,0x45,0x23,0x01,0x00,
+                                   PQL$_DIOLM,0x56,0x34,0x02,0x00,PQL$_LISTEND};
+    (void)i;(void)a;(void)b;(void)c;
+    assert(!d && !f && !g && !h);
     assert(m==7 && flags==0);
+    assert(q && !memcmp(q,expected,sizeof(expected)));
+    created++;
     if(mode==5)return SS$_ABORT;
     *p=777;return 1;
 }
@@ -198,9 +234,19 @@ int main(void)
 {
     struct outcome r;
     protocol_checks();
-    for(mode=0;mode<8;mode++){
+    for(mode=0;mode<12;mode++){
         killed=assigned=freed=released=cancelled=timer_calls=0;
+        queried=created=0;
         r=execute("IMAGE.EXE","IN.DAT","OUT.LOG","ERR.LOG",5);
+        assert(queried==1);
+        if(mode>=8){
+            assert(r.error && !r.clean && !r.timeout && !created);
+            assert(!assigned && !released && !freed && !timer_calls && !killed);
+            assert(r.native_status==(mode==8?SS$_ABORT:
+                                    mode==9?0x12340000U:SS$_BADPARAM));
+            continue;
+        }
+        assert(created==(mode<6?1:0));
         assert(assigned==1 && released==1);
         assert(freed==(mode==7?0:1));
         if(mode==0)assert(r.clean && !r.error && !r.timeout && !killed);
@@ -209,7 +255,8 @@ int main(void)
         if(mode==2 || mode==3 || mode==4)assert(killed==1);
         if(mode==5 || mode==6 || mode==7)assert(!killed);
     }
-    puts("PASS: native supervisor control-flow simulation (8 service scenarios)");
+    puts("PASS: native supervisor control-flow simulation (12 service scenarios)");
+    puts("PASS: explicit packed child ASTLM/DIOLM and quota query failures");
     puts("PASS: strict result/control protocol and native path checks");
     puts("This is not OpenVMS ABI or target execution validation.");
     return 0;
@@ -223,7 +270,8 @@ def main():
     stubs.mkdir(parents=True, exist_ok=True)
     (stubs / "VMS_STUB.H").write_text(HEADER)
     for name in ["starlet.h", "lib$routines.h", "descrip.h", "ssdef.h",
-                 "iodef.h", "dvidef.h", "accdef.h", "msgdef.h"]:
+                 "iodef.h", "dvidef.h", "jpidef.h", "pqldef.h", "efndef.h",
+                 "accdef.h", "msgdef.h"]:
         (stubs / name).write_text('#include "VMS_STUB.H"\n')
     (stubs / "NATIVE_TEST.C").write_text(TEST)
     binary = stubs / "NATIVE_TEST"

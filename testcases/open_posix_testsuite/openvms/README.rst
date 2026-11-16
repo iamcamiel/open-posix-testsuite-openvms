@@ -197,13 +197,30 @@ Native Alpha and IA64 builds also need validation; host simulations do not
 validate their compiler, pointer modes, or service ABI.
 
 Large runs require enough process/thread address space, page-file quota and
-AST/buffered-I/O quotas for the outstanding requests and runtime activity.
+AST/direct-I/O quotas for the outstanding requests and runtime activity.
 Workers request 512 KiB stacks, so 600 workers request about 300 MiB of worker
 stack address space before guards and runtime overhead. Quota failures are
 reported as UNRESOLVED, never as a successful reduced workload. Watch the
 reported native status if setup or submission fails. The scratch file is
 small and repeatedly reused; this is primarily synchronization pressure,
 not a recreation of the production disk/cache or database workload.
+
+The supervisor explicitly passes its ASTLM and DIOLM limits to each child.
+A null SYS$CREPRC quota list would instead select the system defaults/minima,
+which may be much smaller than the invoking process's quotas. For example,
+PQL_DASTLM=24 can cause intermittent SS$_EXQUOTA (0000001C) even with eight
+workers, because workers can submit multiple outstanding requests. No change
+to system-wide SYSGEN defaults is needed when the invoking process already
+has sufficient quotas.
+
+The supervisor prints the requested limits, and the QIO child's STDOUT.LOG
+prints its actual ASTLM/DIOLM and remaining AST/direct-I/O counts before work
+begins. Remaining counts are snapshots, not peak usage or the configured
+limits. If EXQUOTA still occurs, check these values and the failing service;
+EXQUOTA from SYS$DCLAST specifically indicates exhausted AST quota. Account
+quota changes require appropriate administration and a new login to take
+effect; they are not made by the suite. Other quotas retain the existing
+SYS$CREPRC behavior. The workload is not silently reduced to fit low quotas.
 
 A successful long run does not rule out the production defect. In particular,
 600 active database users need not correspond to 600 pthreads. Test both
@@ -228,6 +245,9 @@ The child reads a control file from SYS$INPUT, enters its case directory,
 runs test_main, and writes a result containing its case id and per-run token.
 The supervisor waits for termination before accepting the record. A PASS
 record never overrides an abnormal process exit.
+An atomic claim selects one result writer when several workers report errors
+together. Other reporters wait for termination instead of opening competing
+result files. Exclusive file creation still detects genuinely stale files.
 
 Results and diagnostics
 -----------------------

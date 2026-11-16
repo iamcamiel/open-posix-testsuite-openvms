@@ -1,22 +1,92 @@
+#ifdef __VMS
+#pragma module PTS_MAIN "X-2"
+#endif
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Copyright 2026 iamcamiel
+ * Copyright 2026 VMS Software, Inc.
+ * X-2  CV  Camiel Vanderhoeven  16-Nov-2026:
+ *     Select one result reporter before file creation and process exit.
  * X-1  CV  Camiel Vanderhoeven  15-Nov-2026: Native result adapter.
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
+#ifdef __VMS
+#include <builtins.h>
+#include <pthread.h>
+#include <ssdef.h>
+#include <starlet.h>
+#endif
 #include "PTS_PORT.H"
 
 struct pts_control pts_control;
 extern int test_main(int argc, char **argv);
+
+/* 0: unclaimed, 1: PASS reporter, 2: non-PASS reporter. The result kind is
+ * part of the atomic claim, so contenders need no separate publication flag.
+ * No pthread lock protects reporting: the caller may already hold test locks.
+ */
+static volatile int result_reporter;
+
+static int claim_result(int kind)
+{
+#ifdef __VMS
+	/* Alpha's store-conditional may fail without another reporter winning.
+	 * Retry until this claim succeeds or an actual competing claim is visible.
+	 */
+	while (result_reporter == 0) {
+#ifdef __ia64
+		if (__CMP_SWAP_LONG((volatile void *)&result_reporter, 0, kind))
+#else
+		if (__CMP_STORE_LONG((volatile void *)&result_reporter, 0, kind,
+				     (volatile void *)&result_reporter))
+#endif
+			return 1;
+	}
+	return 0;
+#else
+	return __sync_bool_compare_and_swap(&result_reporter, 0, kind);
+#endif
+}
+
+static void await_reporter(int code)
+{
+	/* An earlier failure must never be replaced by a later PASS. Conflicting
+	 * failure versus an already claimed PASS is conservatively abnormal; do
+	 * not let a late failure disappear behind a successful process exit.
+	 */
+	if (code != 0 && result_reporter == 1) {
+#ifdef __VMS
+		sys$exit(SS$_ABORT);
+#else
+		_Exit(EXIT_FAILURE);
+#endif
+	}
+	for (;;) {
+#ifdef __VMS
+		/* SYS$HIBER could park the only VP while the reporting user thread
+		 * is descheduled in the NONE profile. Yield through the scheduler
+		 * instead. This is an ordinary test error path, not an RTL fatal
+		 * handler; the external watchdog remains the fallback if it stalls.
+		 */
+		(void)pthread_yield_np();
+#else
+		(void)pause();
+#endif
+	}
+}
 
 void pts_exit(int code)
 {
 	FILE *out;
 	int fd, ok;
 
-	/* Exclusive creation prevents competing reports or stale files passing.
+	if (!claim_result(code == 0 ? 1 : 2))
+		await_reporter(code);
+
+	/* Only the first reporter writes or invokes normal CRTL exit processing.
+	 * Exclusive creation still prevents a stale file from passing.
 	 * The native runner supplies an explicit ;1 version on OpenVMS.
 	 */
 	fd = open(pts_control.result, O_WRONLY | O_CREAT | O_EXCL, 0600);
