@@ -76,6 +76,10 @@ loopback TCP, and local communication workload is selected with::
 
     $ @RUN_QIO_MIXED 1 12345 8 200 300 STOP_ON_CRASH
 
+TCP stops starting new batches once the disk workers finish, and drains its
+last batch before closing the sockets. Local messaging completes its configured
+workload. Rebuild with ``@BUILD 64 BOTH`` after updating the test source.
+
 To deliberately crash an isolated pthread worker and check dump artifacts::
 
     $ @RUN_CRASH BUGCHECK

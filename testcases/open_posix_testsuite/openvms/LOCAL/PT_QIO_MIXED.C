@@ -1,9 +1,11 @@
 #ifdef __VMS
-#pragma module PT_QIO_MIXED "X-1"
+#pragma module PT_QIO_MIXED "X-2"
 #endif
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Copyright 2026 iamcamiel
  * Copyright 2026 VMS Software, Inc.
+ * X-2 CV Camiel Vanderhoeven 17-Nov-2026:
+ *     Stop starting TCP batches after disk completion and drain the last batch.
  * X-1 CV Camiel Vanderhoeven 17-Nov-2026:
  *     Add a separate disk-QIO, loopback TCP-QIO and local queue stress test.
  *     Keep the original QIO-only test unchanged as a comparison workload.
@@ -475,6 +477,10 @@ static pthread_cond_t mix_net_cv = PTHREAD_COND_INITIALIZER;
 static unsigned long long mix_local_completed, mix_net_completed;
 static unsigned long long mix_hibernations, mix_wakes, mix_net_asts;
 static unsigned long long mix_net_partial, mix_net_waits;
+/* Protected by mix_net_mutex; neither flag is accessed from AST context. */
+static int mix_net_stop, mix_net_sender_done;
+/* Written by the sender, inspected only after joining it. */
+static unsigned long mix_net_rounds;
 
 static void mix_insert(struct mix_node *head, struct mix_node *node)
 {
@@ -653,6 +659,16 @@ static void *mix_net_sender(void *unused)
 	(void)unused;
 	start_wait();
 	for (sequence = 1; sequence <= pts_control.iterations; ++sequence) {
+		/* Reserve a complete batch before submitting any reads. Once begun,
+		 * finish both pieces and every acknowledgement even if disk I/O ends.
+		 * Cancelling a partial frame would strand a pending read or its AST.
+		 */
+		CHECK(pthread_mutex_lock(&mix_net_mutex));
+		if (mix_net_stop) {
+			CHECK(pthread_mutex_unlock(&mix_net_mutex));
+			break;
+		}
+		CHECK(pthread_mutex_unlock(&mix_net_mutex));
 		for (index = 0; index < MIX_CONNECTIONS; ++index) {
 			struct mix_connection *connection = &mix_connections[index];
 			unsigned int status;
@@ -688,24 +704,33 @@ static void *mix_net_sender(void *unused)
 				CHECK(pthread_cond_wait(&connection->cv, &connection->mutex));
 			CHECK(pthread_mutex_unlock(&connection->mutex));
 		}
+		mix_net_rounds = sequence;
 	}
+	/* Every submitted frame has been acknowledged after its AST retired.
+	 * Wake the worker even when the disk finished before our first batch.
+	 */
+	CHECK(pthread_mutex_lock(&mix_net_mutex));
+	mix_net_sender_done = 1;
+	CHECK(pthread_cond_signal(&mix_net_cv));
+	CHECK(pthread_mutex_unlock(&mix_net_mutex));
 	return NULL;
 }
 
 static void *mix_net_worker(void *unused)
 {
-	unsigned long long total = (unsigned long long)MIX_CONNECTIONS * pts_control.iterations;
 	(void)unused;
 	start_wait();
-	while (mix_net_completed < total) {
+	for (;;) {
 		struct mix_node *node;
 		struct mix_connection *connection;
 		CHECK(pthread_mutex_lock(&mix_net_mutex));
-		while ((node = mix_remove(mix_net_work)) == NULL) {
+		while ((node = mix_remove(mix_net_work)) == NULL && !mix_net_sender_done) {
 			mix_net_waits++;
 			CHECK(pthread_cond_wait(&mix_net_cv, &mix_net_mutex));
 		}
 		CHECK(pthread_mutex_unlock(&mix_net_mutex));
+		if (!node)
+			break;
 		REQUIRE(node->index < MIX_CONNECTIONS);
 		connection = &mix_connections[node->index];
 		while (!connection->retired) CHECK(pthread_yield_np());
@@ -789,8 +814,9 @@ static void mix_setup(void)
 	}
 	if (close(listener) < 0) mix_socket_failure("closing loopback TCP listener");
 	printf("Mixed communication: TCP_connections=%u local_slots=%u helpers=%u "
-	       "messages_per_path=%llu frame_bytes=%u\n", MIX_CONNECTIONS, MIX_LOCAL_SLOTS,
-	       MIX_HELPERS, (unsigned long long)MIX_CONNECTIONS * pts_control.iterations,
+	       "local_messages=%llu TCP_message_limit=%llu frame_bytes=%u\n", MIX_CONNECTIONS, MIX_LOCAL_SLOTS,
+	       MIX_HELPERS, (unsigned long long)MIX_LOCAL_SLOTS * pts_control.iterations,
+	       (unsigned long long)MIX_CONNECTIONS * pts_control.iterations,
 	       MIX_MESSAGE_BYTES);
 }
 
@@ -798,13 +824,16 @@ static void mix_finish(void)
 {
 	unsigned int index;
 	REQUIRE(mix_local_completed == (unsigned long long)MIX_LOCAL_SLOTS * pts_control.iterations);
-	REQUIRE(mix_net_completed == (unsigned long long)MIX_CONNECTIONS * pts_control.iterations);
+	REQUIRE(mix_net_sender_done && mix_net_rounds <= pts_control.iterations);
+	REQUIRE(mix_net_completed == (unsigned long long)MIX_CONNECTIONS * mix_net_rounds);
 	REQUIRE(mix_remove(mix_incoming) == NULL);
 	REQUIRE(mix_remove(mix_local_work) == NULL);
 	REQUIRE(mix_remove(mix_net_work) == NULL);
 	for (index = 0; index < MIX_CONNECTIONS; ++index) {
 		struct mix_connection *connection = &mix_connections[index];
-		REQUIRE(connection->retired && connection->acknowledged == pts_control.iterations);
+		REQUIRE(connection->acknowledged == mix_net_rounds);
+		REQUIRE(connection->sequence == mix_net_rounds);
+		REQUIRE(mix_net_rounds == 0 || connection->retired);
 		/* Channels belong to the C RTL socket descriptors: close them once,
 		 * after all QIOs and ASTs have retired; do not SYS$DASSGN them too.
 		 */
@@ -812,9 +841,12 @@ static void mix_finish(void)
 		if (close(connection->client) < 0) mix_socket_failure("closing TCP client socket");
 	}
 	printf("Mixed communication completed: local=%llu TCP=%llu "
+	       "TCP_rounds=%lu TCP_stop=%s "
 	       "wake_calls=%llu hibernate_calls=%llu TCP_ASTs=%llu "
 	       "partial_reads=%llu TCP_waits=%llu\n", mix_local_completed,
-	       mix_net_completed, mix_wakes, mix_hibernations, mix_net_asts,
+	       mix_net_completed, mix_net_rounds,
+	       mix_net_rounds < pts_control.iterations ? "disk-completion" : "iteration-limit",
+	       mix_wakes, mix_hibernations, mix_net_asts,
 	       mix_net_partial, mix_net_waits);
 	/* Keep static CVs and queue backing storage until image rundown. */
 }
@@ -915,6 +947,12 @@ int test_main(int argc, char **argv)
 		if (contexts[i].completed != 0)
 			used_waiters++;
 	}
+	/* Disk workers have drained all disk completions. TCP may finish only
+	 * the batch it already reserved; no further batches are needed now.
+	 */
+	CHECK(pthread_mutex_lock(&mix_net_mutex));
+	mix_net_stop = 1;
+	CHECK(pthread_mutex_unlock(&mix_net_mutex));
 	for (i = 0; i < MIX_HELPERS; ++i)
 		CHECK(pthread_join(helpers[i], NULL));
 	mix_finish();

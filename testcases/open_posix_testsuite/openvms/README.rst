@@ -293,9 +293,20 @@ Three workloads start together:
 The worker argument still counts disk submitters and waiters, split as in
 ``RUN_QIO``. Five additional pthreads implement the local sender, communication
 thread and worker, plus the TCP sender and worker. Each requests a 512 KiB stack.
-Per pass, disk requests total ``floor(threads / 2) * iterations``; local messages
-and TCP messages each total ``16 * iterations``. With 32 workers and 40000
-iterations, each of the three paths processes 640000 requests/messages.
+Per pass, disk requests total ``floor(threads / 2) * iterations`` and local
+messages total ``16 * iterations``. TCP sends at most ``16 * iterations``
+messages, stopping new batches when all disk workers finish. Any TCP batch
+already started (up to 16 messages) completes both send pieces, receives all
+remaining data, and waits for worker acknowledgements after AST retirement
+before sockets are closed. Pending reads are not cancelled.
+
+With 32 workers and 40000 iterations, disk and local paths each process 640000
+requests/messages; the TCP total depends on how much work completes alongside
+disk I/O. The final report prints the actual TCP message and round counts.
+A very short run can finish disk I/O before TCP starts and report zero TCP
+messages. Local messaging still completes its fixed workload, so it can
+continue after disk and TCP stop. Rebuild with ``@BUILD 64 BOTH`` after
+updating the test source.
 
 The local queue uses memory shared within this process; it does not create
 cross-process global sections. Communication workers are separate from the disk
@@ -534,6 +545,8 @@ For the supplemental native workloads and dump diagnostics, also run::
     python3 TOOLS/CHECK_DUMP.py
 
 The mixed checker uses real host loopback sockets with simulated VMS queue,
-QIO and AST services. Crash triggers use harmless substitutes during host
-validation; the dump checker uses synthetic artifact trees. These checks do
+QIO and AST services. It also forces disk completion before TCP starts, during
+a partial TCP frame, and after TCP reaches its iteration limit to check shutdown
+and draining without relying on timing. Crash triggers use harmless substitutes
+during host validation; the dump checker uses synthetic artifact trees. These checks do
 not create or validate an actual OpenVMS image dump.
