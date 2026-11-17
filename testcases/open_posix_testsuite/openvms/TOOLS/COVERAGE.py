@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright 2026 iamcamiel
+# X-3 CV Camiel Vanderhoeven 17-Nov-2026: Include shared local test bodies.
 # X-2 CV Camiel Vanderhoeven 16-Nov-2026: QIO/AST coverage and portable LF output.
 # X-1 CV Camiel Vanderhoeven 15-Nov-2026: public API coverage inventory.
 """Generate coverage from a reference pthread.h; never copy the header."""
@@ -32,6 +33,25 @@ ABSENT = [
 ]
 
 
+def test_source(path, seen=None):
+    """Read a case and its quoted local includes, including shared test bodies."""
+    if seen is None:
+        seen = set()
+    path = path.resolve()
+    if path in seen:
+        return ""
+    seen.add(path)
+    text = path.read_text()
+    parts = [text]
+    for name in re.findall(r'^\s*#\s*include\s*"([^"\n]+)"', text, re.M):
+        for parent in (path.parent, PORT, PORT / "LOCAL"):
+            candidate = (parent / name).resolve()
+            if candidate.is_relative_to(SUITE.resolve()) and candidate.is_file():
+                parts.append(test_source(candidate, seen))
+                break
+    return "\n".join(parts)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("header", type=Path)
@@ -45,9 +65,9 @@ def main():
     asserted = {}
     exercised = {}
     for row in cases():
-        for api in row["apis"].split(","):
+        for api in filter(None, row["apis"].split(",")):
             asserted.setdefault(api, []).append(row["id"])
-        src = (SUITE / row["source"]).read_text()
+        src = test_source(SUITE / row["source"])
         src = re.sub(r"/\*.*?\*/|//[^\n]*", "", src, flags=re.S)
         for api in set(re.findall(r"\b(pthread_\w+)\s*\(", src)):
             exercised.setdefault(api, []).append(row["id"])
