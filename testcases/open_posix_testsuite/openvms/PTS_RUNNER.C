@@ -1,9 +1,11 @@
 #ifdef __VMS
-#pragma module PTS_RUNNER "X-5"
+#pragma module PTS_RUNNER "X-6"
 #endif
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Copyright 2026 iamcamiel
  * Copyright 2026 VMS Software, Inc.
+ * X-6  CV  Camiel Vanderhoeven  17-Nov-2026: Enable child image dumps for
+ *     unhandled conditions, including faults outside pthread bugcheck paths.
  * X-5  CV  Camiel Vanderhoeven  16-Nov-2026: Optionally stop after a crash
  *     and display the completed child's stderr while retaining its results.
  * X-4  CV  Camiel Vanderhoeven  16-Nov-2026: Pass parent AST/direct-I/O limits
@@ -43,6 +45,7 @@
 #include <dvidef.h>
 #include <jpidef.h>
 #include <pqldef.h>
+#include <prcdef.h>
 #include <efndef.h>
 #include <accdef.h>
 #include <msgdef.h>
@@ -217,9 +220,11 @@ static struct outcome execute(const char *image, const char *input,
 	 * The supervisor is compiled with 32-bit pointers for these ILE3 lists.
 	 * A null quota list would use system PQL defaults, not the runner's full
 	 * limits. Preserve its AST/direct-I/O limits; leave other quotas alone.
+	 * Request image dumps explicitly for faults outside pthread's bugcheck
+	 * path; the directly created child needs its own dump setting.
 	 */
 	status = sys$creprc(&pid, &img, &in, &out, &err,
-			   0, quotas, 0, 0, 0, (unsigned short)unit, 0);
+			   0, quotas, 0, 0, 0, (unsigned short)unit, PRC$M_IMGDMP);
 	if (!(status & 1))
 		goto setup_error;
 	for (;;) {

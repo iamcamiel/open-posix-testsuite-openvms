@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright 2026 iamcamiel
+# X-4 CV Camiel Vanderhoeven 17-Nov-2026: Require child image dumps on CREPRC.
 # X-3 CV Camiel Vanderhoeven 16-Nov-2026: Verify explicit child quota limits
 # and GETJPI service, completion, and returned-length failure handling.
 # X-2 CV Camiel Vanderhoeven 16-Nov-2026: Check the expanded worker limit.
@@ -35,6 +36,7 @@ struct accdef {
 #define PQL$_LISTEND 0
 #define PQL$_ASTLM 1
 #define PQL$_DIOLM 5
+#define PRC$M_IMGDMP 0x800
 #define EFN$C_ENF 128
 #define SS$_NORMAL 1
 #define SS$_ENDOFFILE 16
@@ -136,7 +138,7 @@ unsigned int sys$creprc(unsigned int *p,void *i,void *a,void *b,void *c,
                                    PQL$_DIOLM,0x56,0x34,0x02,0x00,PQL$_LISTEND};
     (void)i;(void)a;(void)b;(void)c;
     assert(!d && !f && !g && !h);
-    assert(m==7 && flags==0);
+    assert(m==7 && flags==PRC$M_IMGDMP);
     assert(q && !memcmp(q,expected,sizeof(expected)));
     created++;
     if(mode==5)return SS$_ABORT;
@@ -270,7 +272,7 @@ def main():
     stubs.mkdir(parents=True, exist_ok=True)
     (stubs / "VMS_STUB.H").write_text(HEADER)
     for name in ["starlet.h", "lib$routines.h", "descrip.h", "ssdef.h",
-                 "iodef.h", "dvidef.h", "jpidef.h", "pqldef.h", "efndef.h",
+                 "iodef.h", "dvidef.h", "jpidef.h", "pqldef.h", "prcdef.h", "efndef.h",
                  "accdef.h", "msgdef.h"]:
         (stubs / name).write_text('#include "VMS_STUB.H"\n')
     (stubs / "NATIVE_TEST.C").write_text(TEST)
