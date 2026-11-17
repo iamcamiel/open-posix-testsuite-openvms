@@ -146,6 +146,66 @@ Replace the device/directory. The output directory must already exist.
 Custom manifests use the same eight-column format and reference images already
 built in ``[.BUILD]``.
 
+Disabled-AST regressions
+------------------------
+
+Three original supplemental cases check deferred AST delivery in a threaded
+process using the public SYS$SETAST and SYS$DCLAST services:
+
+* ``PT_AST_MAIN`` disables ASTs in the initial thread, queues callbacks, and
+  makes progress through worker handoffs while delivery remains disabled.
+  Repeated disabling is checked for idempotence: one enable must suffice.
+* ``PT_AST_WORKER`` has two helpers disable ASTs concurrently. Re-enabling
+  the first helper must not release queued callbacks; re-enabling the last
+  helper must release them.
+* ``PT_AST_CALLBACK`` queues a follower from an AST and disables delivery
+  before returning. The initial thread must regain control, make progress,
+  and later re-enable delivery of the follower.
+
+Each case checks for premature, missing, or duplicate callbacks. Disabled-window
+handshakes use ordinary thread synchronization and do not wait for AST completion.
+AST callbacks use no ordinary pthread locking or waiting routines. These tests
+exercise the AST delivery path without adding logging to the runtime.
+
+All three are built by ``@BUILD`` and included in ``@RUN``. To run only these
+cases, from the ``OPENVMS`` directory::
+
+    $ @BUILD 64 BOTH
+    $ @RUN_AST 1 12345 200 300
+    $ @RUN_AST 100 12345 2000 300 STOP_ON_CRASH
+
+The interface is::
+
+    @RUN_AST [repeats [seed [iterations [timeout_seconds [CONTINUE|STOP_ON_CRASH]]]]]
+
+Defaults are one repetition, seed 1, 200 iterations per case, and a 300-second
+deadline per case. There is no worker-count argument: each case uses the initial
+thread and two helpers. Every iteration repeats the scenario; the seed varies
+yield injection. The supervisor runs each case in a separate process and retains
+its STDOUT.LOG, STDERR.LOG, and SUMMARY.CSV entry under ``[.RESULTS]``.
+
+Use ``BOTH`` or ``UPCALLS``. Builds with ``KERNEL`` or ``NONE`` and non-OpenVMS
+host builds report these cases UNSUPPORTED. The tests use public services and
+are intended for Alpha, IA64, and x86, with 32-bit or 64-bit test pointers.
+Successful host checks do not establish native correctness on any architecture.
+Rebuild and run each pointer/profile combination separately, for example::
+
+    $ @BUILD 32 BOTH
+    $ @RUN_AST 1 12345 200 300
+    $ @BUILD 64 UPCALLS
+    $ @RUN_AST 1 12345 200 300
+
+The external watchdog is essential: a runtime spinning in AST delivery may
+never return to the test. That case is recorded as TIMEOUT. A timeout alone
+does not prove the cause; retain the logs and inspect the process while it is
+still running if a stack trace is needed. ``STOP_ON_CRASH`` stops on CRASH,
+as elsewhere in the suite; it does not stop on TIMEOUT or FAIL.
+
+These are AST integration regressions, not additional POSIX conformance
+assertions. SYS$SETAST reports the previous enable state with SS$_WASSET or
+SS$_WASCLR; see the `OpenVMS system services reference
+<https://docs.vmssoftware.com/vsi-openvms-system-services-reference-manual-getutc-z/>`_.
+
 QIO completion and AST stress
 -----------------------------
 
@@ -504,6 +564,8 @@ exclusion; mutex contention; and legal concurrent condition-variable lifetimes.
 The QIO/AST case adds partial native coverage of interrupt-safe CV signalling
 with persistent I/O slots, cross-thread waiting, and slot reuse. The separate
 mixed case adds loopback TCP AST completion and local HIBER/WAKE dispatch.
+The disabled-AST cases check SETAST state, overlapping disabling threads,
+progress while delivery is disabled, and deferred callback delivery.
 Intentional crash probes are diagnostic checks, excluded from API coverage.
 
 Planned work includes the full attributes/error matrix, scheduling/priorities,
@@ -541,6 +603,7 @@ For the supplemental native workloads and dump diagnostics, also run::
 
     python3 TOOLS/CHECK_QIO.py
     python3 TOOLS/CHECK_QIO_MIXED.py
+    python3 TOOLS/CHECK_AST.py
     python3 TOOLS/CHECK_CRASH.py
     python3 TOOLS/CHECK_DUMP.py
 
@@ -550,3 +613,7 @@ a partial TCP frame, and after TCP reaches its iteration limit to check shutdown
 and draining without relying on timing. Crash triggers use harmless substitutes
 during host validation; the dump checker uses synthetic artifact trees. These checks do
 not create or validate an actual OpenVMS image dump.
+
+CHECK_AST compiles the native AST cases against a host service model with real
+pthread helpers. Fault injection checks the test assertions as well as successful
+delivery. It does not emulate the OpenVMS scheduler, AST ABI, or memory ordering.

@@ -3,11 +3,11 @@
 Open POSIX tests for OpenVMS
 ============================
 
-OpenVMS x86-64 port of a selected Open POSIX Test Suite subset. This repository
+OpenVMS port of a selected Open POSIX Test Suite subset. This repository
 is derived from Linux Test Project.
 
 The initial subset includes 19 unchanged upstream conformance cases,
-12 supplemental regression/stress cases, an API coverage inventory, and a
+15 supplemental regression/stress cases, an API coverage inventory, and a
 native process supervisor. Unrelated Linux kernel tests and unused LTP build
 infrastructure have been removed. Upstream history and attribution are retained.
 
@@ -79,6 +79,20 @@ loopback TCP, and local communication workload is selected with::
 TCP stops starting new batches once the disk workers finish, and drains its
 last batch before closing the sockets. Local messaging completes its configured
 workload. Rebuild with ``@BUILD 64 BOTH`` after updating the test source.
+
+Disabled-AST regressions are included in normal runs and can be selected alone::
+
+    $ @BUILD 64 BOTH
+    $ @RUN_AST 1 12345 200 300
+    $ @RUN_AST 100 12345 2000 300 STOP_ON_CRASH
+
+The three cases check main-thread disabling, overlapping worker disables, and
+an AST that disables delivery of a queued follower. Each verifies progress while
+ASTs are disabled and exactly-once delivery after re-enabling. The arguments are
+repeats, seed, iterations, timeout seconds per case, and optional crash policy;
+these tests use a fixed initial thread plus two helpers. They target Alpha,
+IA64, and x86 with upcalls enabled; native validation is required on each target.
+See the detailed instructions for profiles and timeout interpretation.
 
 To deliberately crash an isolated pthread worker and check dump artifacts::
 
