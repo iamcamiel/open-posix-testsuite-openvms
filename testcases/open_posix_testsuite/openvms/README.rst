@@ -312,10 +312,20 @@ FAIL, UNRESOLVED, CRASH, TIMEOUT, HARNESS_ERROR, and BUILD_ERROR make the overal
 run fail. An entirely unsupported/untested run also fails. Unsupported and
 untested counts remain visible when other cases pass.
 
-After the child enters its case directory, dumps and pthread_dump.log should
-be written there. Image/library initialization can fail before this directory
-change, so also check the supervisor's default directory. Dump creation still
-depends on the node's settings, quotas, and available disk space.
+The native supervisor explicitly enables image dumps for every child with
+``PRC$M_IMGDMP`` on ``SYS$CREPRC``. An unhandled condition such as ACCVIO can
+therefore produce an image ``.DMP`` even when it does not enter pthread's
+bugcheck handler. Rebuild the supervisor with ``@BUILD`` after updating;
+setting ``SET PROCESS/DUMP`` in the invoking DCL process is not a substitute
+for enabling dumps in the directly created child.
+
+After the child enters its case directory, its image dump should be written
+there. Image/library initialization can fail before this directory change,
+so also check the supervisor's default directory. Dump creation still depends
+on the node's settings, quotas, write access, and available disk space.
+``PTHREAD_DUMP.LOG`` is a separate pthread bugcheck report, not a report
+generated for every access violation. Preserve the entire failing case
+directory, the test executable, and the exact RTL images used for analysis.
 
 Testing a candidate runtime
 ---------------------------

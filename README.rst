@@ -64,6 +64,13 @@ profile before building the next. The supervisor uses independent process
 isolation and timeouts. Per-case output and SUMMARY.CSV are retained below
 the port directory's [.RESULTS] tree.
 
+The native supervisor enables image dumps for unhandled conditions in every
+child process. After updating, rebuild with ``@BUILD`` to enable this in the
+runner. Dumps normally go into the failing case directory; failures during
+image initialization can use the supervisor's default directory instead.
+Dump creation still depends on system settings, quotas, and disk availability.
+``PTHREAD_DUMP.LOG`` is produced by pthread bugchecks, not by every ACCVIO.
+
 Read the OpenVMS_instructions_ for checkout, prerequisites, build outputs,
 candidate-runtime selection, workload settings, result codes, diagnostics,
 coverage limits, and development checks.
