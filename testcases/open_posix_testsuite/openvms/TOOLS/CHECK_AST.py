@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright 2026 iamcamiel
 # Copyright 2026 VMS Software, Inc.
+# X-2 CV Camiel Vanderhoeven 17-Nov-2026: Check expanded timer-case selection.
 # X-1 CV Camiel Vanderhoeven 17-Nov-2026: Validate disabled-AST assertions.
 """Compile the native AST tests against controlled host service substitutes.
 
@@ -22,6 +23,9 @@ import tempfile
 
 PORT = Path(__file__).resolve().parent.parent
 CASES = ("PT_AST_MAIN", "PT_AST_WORKER", "PT_AST_CALLBACK")
+SELECTED_CASES = CASES + ("PT_AST_TIMER", "PT_AST_TIMER_PRINTF",
+                          "PT_AST_TIMER_FLUSH", "PT_AST_TIMER_CRTL",
+                          "PT_AST_TIMER_ENABLE")
 
 
 def check_selection():
@@ -29,7 +33,7 @@ def check_selection():
     rows = [line.split("|") for line in (PORT / "CASES.DAT").read_text().splitlines()
             if line and not line.startswith("#")]
     assert all(len(row) == 8 for row in rows)
-    for case in CASES:
+    for case in SELECTED_CASES:
         selected = [row for row in rows if row[0] == case]
         assert len(selected) == 1, (case, selected)
         row = selected[0]
@@ -40,11 +44,14 @@ def check_selection():
     assert {"PT_QIO_AST", "PT_QIO_MIXED"} <= {row[0] for row in rows}
     script = (PORT / "RUN_AST.COM").read_text()
     selected_ids = set(re.findall(r'"(PT_AST_[A-Z_]+)"', script))
-    assert selected_ids == set(CASES)
+    assert selected_ids == set(SELECTED_CASES)
     assert "timeout = f$integer(p4)" in script
     assert '"|" + f$string(timeout) + "|" + f$element(3,"|",row)' in script
     assert '''$ runner 'manifest' "[.RESULTS]" 'p1' 'p2' 3 'p3' "''p5'"''' in script
     assert "if .not. found_main .or. .not. found_worker .or. .not. found_callback" in script
+    assert "if .not. found_timer .or. .not. found_timer_crtl" in script
+    assert "if .not. found_timer_printf .or. .not. found_timer_enable" in script
+    assert "if .not. found_timer_flush then goto missing" in script
     assert 'if p3 .eqs. "" then p3 = "200"' in script
     assert 'if p4 .eqs. "" then p4 = "300"' in script
     print("AST manifest and DCL selection contracts: PASS (static checks)", flush=True)
