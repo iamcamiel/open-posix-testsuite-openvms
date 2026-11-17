@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright 2026 iamcamiel
+# X-2 CV Camiel Vanderhoeven 17-Nov-2026: Build opt-in crash probes and artifact checker.
 # X-1 CV Camiel Vanderhoeven 15-Nov-2026: portable validation build.
 """Build the selected sources and POSIX runner backend; not a VMS validation."""
 import argparse
@@ -67,7 +68,10 @@ def build(cc="cc"):
     runner = compile_file(PORT / "PTS_RUNNER.C", "PTS_RUNNER", ["-Werror"])
     link([runner, common], "PTS_RUNNER", pthread=False)
 
-    for row in cases():
+    dump_check = compile_file(PORT / "PTS_DUMP_CHECK.C", "PTS_DUMP_CHECK", ["-Werror"])
+    link([dump_check, common], "PTS_DUMP_CHECK", pthread=False)
+
+    for row in cases() + cases(PORT / "CRASH_CASES.DAT"):
         source = SUITE / row["source"]
         if not source.is_file():
             raise ValueError(f"Missing {source}")
@@ -91,7 +95,7 @@ def build(cc="cc"):
     }
     (builddir / "BUILD_INFO.TXT").write_text(json.dumps(info, indent=2) + "\n")
     (builddir / "BUILD_STATE.DAT").write_text("READY\n")
-    print(f"Built {len(cases())} selected cases and supervisor", flush=True)
+    print(f"Built {len(cases())} selected cases, opt-in probes, and supervisor", flush=True)
 
 
 def run_directory_self_test(cc):

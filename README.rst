@@ -7,7 +7,7 @@ OpenVMS x86-64 port of a selected Open POSIX Test Suite subset. This repository
 is derived from Linux Test Project.
 
 The initial subset includes 19 unchanged upstream conformance cases,
-11 supplemental regression/stress cases, an API coverage inventory, and a
+12 supplemental regression/stress cases, an API coverage inventory, and a
 native process supervisor. Unrelated Linux kernel tests and unused LTP build
 infrastructure have been removed. Upstream history and attribution are retained.
 
@@ -35,7 +35,7 @@ Examples::
     $ @BUILD 64 BOTH
     $ @RUN 100 12345 32 10000
 
-The native QIO/AST stress case models the Mimer I/O completion pattern with
+The native QIO/AST stress case exercises asynchronous I/O completion with
 128 persistent slots and different submitting and waiting threads. To run
 only that case, including an aggressive 600-worker workload::
 
@@ -70,6 +70,22 @@ runner. Dumps normally go into the failing case directory; failures during
 image initialization can use the supervisor's default directory instead.
 Dump creation still depends on system settings, quotas, and disk availability.
 ``PTHREAD_DUMP.LOG`` is produced by pthread bugchecks, not by every ACCVIO.
+
+The original disk-only ``@RUN_QIO`` remains available. The separate mixed disk,
+loopback TCP, and local communication workload is selected with::
+
+    $ @RUN_QIO_MIXED 1 12345 8 200 300 STOP_ON_CRASH
+
+To deliberately crash an isolated pthread worker and check dump artifacts::
+
+    $ @RUN_CRASH BUGCHECK
+    $ @RUN_CRASH ACCVIO
+
+These opt-in diagnostics are built by ``@BUILD`` but excluded from normal runs.
+BUGCHECK requests the runtime's fatal-error log and an image dump; ACCVIO tests
+image-dump creation for an unhandled worker fault. The separate checker verifies
+fresh artifacts after the expected CRASH. A written dump still needs SDA
+validation. See the detailed instructions before running these diagnostics.
 
 Read the OpenVMS_instructions_ for checkout, prerequisites, build outputs,
 candidate-runtime selection, workload settings, result codes, diagnostics,

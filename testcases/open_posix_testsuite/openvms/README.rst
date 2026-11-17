@@ -149,9 +149,9 @@ built in ``[.BUILD]``.
 QIO completion and AST stress
 -----------------------------
 
-``PT_QIO_AST`` is an original supplemental test of the I/O pattern described
-by Mimer. It uses public OpenVMS services and pthread interfaces; it contains
-no Mimer implementation code. The normal manifest runs a short instance with
+``PT_QIO_AST`` is an original supplemental test of asynchronous disk I/O
+completion. It uses public OpenVMS services and pthread interfaces. The normal
+manifest runs a short instance with
 a 300-second external deadline. On non-OpenVMS hosts it reports UNSUPPORTED.
 
 Build all test images as usual, then select just this case::
@@ -189,7 +189,7 @@ The workload uses:
 
 * 128 reusable slots, each with a persistent CV, mutex, IOSB and 4 KiB buffer.
   The 64-bit build uses _malloc64 for the slot pool, exercising long pointers
-  like those in the Mimer dump; the startup output records its actual address.
+  above the 32-bit address range; startup output records its actual address.
   The 32-bit build uses ordinary allocation. RMS control structures remain
   in 32-bit address space as required by their pointer fields.
 * Asynchronous disk SYS$QIO on an exclusively created private scratch file in
@@ -198,8 +198,8 @@ The workload uses:
 * An AST that publishes completion and calls pthread_cond_signal_int_np without
   taking the slot mutex. Waiters use a predicate loop with pthread_cond_wait;
   event flags and SYS$SYNCH do not replace the CV wakeup path.
-* Synthetic early request errors completed by SYS$DCLAST, matching Mimer's
-  error-completion mechanism. Every sixteenth request uses this path, and
+* Synthetic early request errors completed by SYS$DCLAST so both disk and
+  error completions run in AST context. Every sixteenth request uses this path, and
   DCLAST submission status is checked.
 * Both issue-before-handoff and handoff-before-issue ordering. The latter is a
   deliberate stress variation to encourage a waiter to block before completion.
@@ -212,7 +212,7 @@ There is no per-I/O formatted logging. Each AST also publishes a final marker
 so the harness cannot reuse a slot while the callback is still updating its
 diagnostic fields. A waiter checks this marker only after its CV predicate has
 completed; it cannot rescue a missing CV wakeup. This extra lifetime check is
-a test-harness difference from the supplied Mimer code.
+an additional test-harness lifetime safeguard.
 
 Use BOTH first: it enables upcalls and multiple kernel threads, as needed to
 exercise AST delivery alongside multi-VP scheduling. Run separate builds with
@@ -253,6 +253,118 @@ moderate worker counts near the server's actual thread count and higher counts,
 vary seeds and repeats, and compare installed and candidate RTL images. The
 external supervisor reports TIMEOUT or CRASH without relying on pthreads to
 remain functional. Preserve the case directory, logs and dumps on failure.
+
+Mixed QIO and communication stress
+----------------------------------
+
+``PT_QIO_MIXED`` is a separate supplemental workload. The original
+``PT_QIO_AST`` and ``@RUN_QIO`` remain unchanged for direct comparisons.
+Build with upcalls enabled and select the mixed case explicitly::
+
+    $ @BUILD 64 BOTH
+    $ @RUN_QIO_MIXED 1 12345 8 200 300 STOP_ON_CRASH
+    $ @RUN_QIO_MIXED 10000 12345 32 40000 3600 STOP_ON_CRASH
+
+The six arguments and defaults match ``@RUN_QIO``::
+
+    @RUN_QIO_MIXED [repeats [seed [threads [iterations [timeout_seconds [CONTINUE|STOP_ON_CRASH]]]]]]
+
+The normal manifest also includes a short mixed run. TCP/IP must be started
+and support the socket/QIO interfaces. The listener binds only to loopback
+(127.0.0.1), using an automatically assigned port. No external client or server
+is required. Setup and quota failures are reported as UNRESOLVED.
+
+Three workloads start together:
+
+* Disk: the same 128-slot asynchronous QIO, cross-thread completion waits,
+  read-back validation, and declared-AST error completion as the original case.
+* Local communication: 16 persistent message slots, native interlocked queues,
+  and a dedicated communication thread using SYS$HIBER. A sender inserts a batch
+  and calls SYS$WAKE; the communication thread dispatches it using ordinary
+  pthread mutexes and condition variables. A worker verifies each message and
+  acknowledges it before the slot can be reused.
+* TCP communication: 16 loopback connections with outstanding SYS$QIO reads.
+  Each message is sent in two pieces. Completion ASTs accumulate partial reads,
+  enqueue a complete message, and call pthread_cond_signal_int_np to wake a
+  worker. The worker validates contents and acknowledges completion only after
+  the AST has published its final marker. TCP may coalesce the sends; partial
+  completions are handled but not guaranteed on every native run.
+
+The worker argument still counts disk submitters and waiters, split as in
+``RUN_QIO``. Five additional pthreads implement the local sender, communication
+thread and worker, plus the TCP sender and worker. Each requests a 512 KiB stack.
+Per pass, disk requests total ``floor(threads / 2) * iterations``; local messages
+and TCP messages each total ``16 * iterations``. With 32 workers and 40000
+iterations, each of the three paths processes 640000 requests/messages.
+
+The local queue uses memory shared within this process; it does not create
+cross-process global sections. Communication workers are separate from the disk
+workers. Connection count and message size are bounded test settings, not a model
+of thousands of production sessions. The output records counts, actual partial
+reads, waits, and queue completion checks without per-request formatted logging.
+
+Use ``BOTH`` first. ``UPCALLS`` is also supported by the test selection. Builds
+with ``KERNEL`` or ``NONE`` report this case UNSUPPORTED because the in-process
+HIBER/WAKE workload needs pthread upcalls to avoid blocking its own producers.
+``BUILD.COM`` records that link-profile choice in the test compile definitions.
+All three architectures and both pointer modes still require native validation;
+host service simulations cannot validate AST delivery or OpenVMS socket ABI.
+
+Intentional crash and dump checks
+--------------------------------
+
+These diagnostics deliberately terminate one isolated child process. They are
+built by ``@BUILD`` but live in ``CRASH_CASES.DAT``, outside the normal ``@RUN``
+manifest, and are never started by ``@RUN_QIO`` or ``@RUN_QIO_MIXED``. An explicit
+mode is required; ``@RUN_CRASH`` without a mode only prints usage.
+
+Build and run from the ``OPENVMS`` directory::
+
+    $ @BUILD 64 BOTH
+    $ @RUN_CRASH BUGCHECK
+    $ @RUN_CRASH ACCVIO
+
+The interface is::
+
+    @RUN_CRASH BUGCHECK|ACCVIO [timeout_seconds]
+
+The default external deadline is 600 seconds, including image-dump creation;
+it can be set from 1 through 86400. Use a separate checkout/build directory
+when another stress campaign is running, so its executable set stays fixed.
+
+``BUGCHECK`` creates a pthread worker and calls the exported diagnostic routine
+``pthread_dbg_get`` with deliberately invalid item code 2147483647. The compatibility entry is declared locally with its inspected native ABI; no
+private pthread header is required. The reviewed runtime enters its fatal-error handler with reason
+``deb_get: bad item code 2147483647``. This exercises the runtime's own diagnostic
+log and image-dump path without modifying the runtime or its private objects.
+It is an implementation diagnostic, not a POSIX conformance assertion. If a
+runtime instead rejects the item and returns, the probe reports UNRESOLVED.
+
+``ACCVIO`` creates a pthread worker and deliberately faults in application code.
+This tests the supervisor's ``PRC$M_IMGDMP`` setting and the image-dump path for
+an unhandled access violation. It does not require a pthread diagnostic log.
+
+The expected raw supervisor classification is CRASH, with a failing supervisor
+exit status. ``RUN_CRASH`` then runs a separate checker, linked without pthreads,
+after child termination. The checker requires:
+
+* Exactly one CRASH result for the selected probe.
+* A matching control record and flushed trigger marker with that run's token.
+* A nonempty ``*.DMP`` file in that fresh case directory.
+* For BUGCHECK, ``PTHREAD_DUMP.LOG`` containing the expected runtime reason.
+* No recognized image-dump-aborting diagnostic in STDERR.LOG.
+
+The procedure succeeds only if those artifact checks succeed. TIMEOUT,
+UNRESOLVED, a missing/empty file, a stale token, or an image-dump failure does
+not count as a successful diagnostic. It preserves the raw CRASH row and all
+artifacts; it does not turn expected crashes into normal suite PASS results.
+The correct runtime log filename is ``PTHREAD_DUMP.LOG``.
+
+A nonempty dump proves that a file was written; it does not prove that the dump
+is complete or readable by SDA. Inspect the reported dump with SDA separately.
+If dump placement is redirected outside the case directory, the checker reports
+the missing local artifact rather than accepting a file from another run.
+Retain STDOUT.LOG and STDERR.LOG even when no dump is produced.
 
 Process isolation and watchdog
 ------------------------------
@@ -357,8 +469,8 @@ declared_vms, unix_only, obsolete, and not_declared. Absence from that reference
 header is not a claim about all OpenVMS releases.
 
 Coverage is labelled partial, exercised_only, planned, or excluded. Calling an
-API does not establish complete assertion coverage. Native runtime validation
-remains pending until execution on OpenVMS.
+API does not establish complete assertion coverage. New cases require native runtime validation
+on OpenVMS; host builds and simulations alone do not establish it.
 
 HEADER_REFERENCE.TXT identifies the reference header by hash. The header itself
 is not included in this public repository. With a reference header available,
@@ -379,7 +491,9 @@ condition handoff, broadcast and timeout; deferred cancellation with mutex
 reacquisition; concurrent once initialization and TSD destructors; reader/writer
 exclusion; mutex contention; and legal concurrent condition-variable lifetimes.
 The QIO/AST case adds partial native coverage of interrupt-safe CV signalling
-with persistent I/O slots, cross-thread waiting, and slot reuse.
+with persistent I/O slots, cross-thread waiting, and slot reuse. The separate
+mixed case adds loopback TCP AST completion and local HIBER/WAKE dispatch.
+Intentional crash probes are diagnostic checks, excluded from API coverage.
 
 Planned work includes the full attributes/error matrix, scheduling/priorities,
 additional cancellation modes and points, stack/guard boundaries, other AST cases,
@@ -411,3 +525,15 @@ CHECK_RUNNER executes real child processes to verify stop-on-crash, stderr
 replay, retained results, and continuation after other classifications.
 CHECK_NATIVE compiles the OpenVMS supervisor branch against system-service
 stubs. These checks do not replace native builds and execution on OpenVMS.
+
+For the supplemental native workloads and dump diagnostics, also run::
+
+    python3 TOOLS/CHECK_QIO.py
+    python3 TOOLS/CHECK_QIO_MIXED.py
+    python3 TOOLS/CHECK_CRASH.py
+    python3 TOOLS/CHECK_DUMP.py
+
+The mixed checker uses real host loopback sockets with simulated VMS queue,
+QIO and AST services. Crash triggers use harmless substitutes during host
+validation; the dump checker uses synthetic artifact trees. These checks do
+not create or validate an actual OpenVMS image dump.

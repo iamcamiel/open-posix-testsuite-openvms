@@ -1,0 +1,5 @@
+# Opt-in destructive diagnostics. Never include in CASES.DAT or normal @RUN.
+# Run only with @RUN_CRASH BUGCHECK or @RUN_CRASH ACCVIO.
+# id|source|timeout_seconds|category|apis|assertion|blob|state
+PT_CRASH_BUGCHECK|openvms/LOCAL/PT_CRASH_DUMP.C|600|diagnostic|pthread_dbg_get|intentional_rtl_bugcheck_dump_artifacts|local|ready
+PT_CRASH_ACCVIO|openvms/LOCAL/PT_CRASH_DUMP.C|600|diagnostic|pthread_create|intentional_worker_fault_dump_artifacts|local|ready
