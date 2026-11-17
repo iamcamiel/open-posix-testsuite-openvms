@@ -149,8 +149,8 @@ built in ``[.BUILD]``.
 Disabled-AST regressions
 ------------------------
 
-Three original supplemental cases check deferred AST delivery in a threaded
-process using the public SYS$SETAST and SYS$DCLAST services:
+Eight supplemental cases check deferred AST delivery in a threaded process
+using the public SYS$SETAST, SYS$DCLAST, and SYS$SETIMR services:
 
 * ``PT_AST_MAIN`` disables ASTs in the initial thread, queues callbacks, and
   makes progress through worker handoffs while delivery remains disabled.
@@ -161,13 +161,44 @@ process using the public SYS$SETAST and SYS$DCLAST services:
 * ``PT_AST_CALLBACK`` queues a follower from an AST and disables delivery
   before returning. The initial thread must regain control, make progress,
   and later re-enable delivery of the follower.
+* ``PT_AST_TIMER`` disables ASTs in the initial thread before creating two
+  workers. Each thread queues a timer and uses an unsignalled condition timed
+  wait. Main joins both workers while still disabled, verifies no callbacks
+  ran, then enables delivery and requires one callback per timer. There is no
+  progress output inside the disabled interval on a successful run.
+* ``PT_AST_TIMER_PRINTF`` uses the same sequence with normal-context printf
+  calls from all three threads, without explicit flushing. No extra test mutex
+  serializes these calls, so this variant exercises CRTL output synchronization.
+* ``PT_AST_TIMER_FLUSH`` adds fflush after each of those printf calls, allowing
+  comparison with the normally buffered output variant.
+* ``PT_AST_TIMER_CRTL`` adds time, ctime, formatting, and output. A test mutex
+  protects ctime's shared buffer through formatting and printing. Comparing
+  this case with the printf-only case separates the extra CRTL activity and
+  serialization from plain output.
+* ``PT_AST_TIMER_ENABLE`` uses the baseline sequence but has one worker call
+  SETAST(1) without a preceding disable. That must not release main's disable.
+
+The first four timer variants model the no-argument reproducer's main-thread
+disable; the fifth separately covers its extra worker-enable mode. Timers and
+waits are shortened. All three timers expire before main enables delivery,
+making the pending-delivery assertion stronger than the original's late main
+timer. The baseline still uses clock queries to construct wait deadlines;
+it is not entirely free of CRTL calls. Spurious successful condition waits are
+retried with the original deadline instead of being reported as failures.
+
+The timer AST routines only record callback counters and validate their tokens;
+they do not print, convert times, allocate memory, or call ordinary pthread
+routines. Counters are checked while main still holds its disable, before the
+explicit enable. Thus a failure identifies actual premature callback execution,
+not merely an unexpected order of printed timestamps. The tests deliberately
+omit the reproducer's printf/ctime calls inside AST context.
 
 Each case checks for premature, missing, or duplicate callbacks. Disabled-window
 handshakes use ordinary thread synchronization and do not wait for AST completion.
 AST callbacks use no ordinary pthread locking or waiting routines. These tests
 exercise the AST delivery path without adding logging to the runtime.
 
-All three are built by ``@BUILD`` and included in ``@RUN``. To run only these
+All eight are built by ``@BUILD`` and included in ``@RUN``. To run only these
 cases, from the ``OPENVMS`` directory::
 
     $ @BUILD 64 BOTH
@@ -178,11 +209,13 @@ The interface is::
 
     @RUN_AST [repeats [seed [iterations [timeout_seconds [CONTINUE|STOP_ON_CRASH]]]]]
 
-Defaults are one repetition, seed 1, 200 iterations per case, and a 300-second
-deadline per case. There is no worker-count argument: each case uses the initial
-thread and two helpers. Every iteration repeats the scenario; the seed varies
-yield injection. The supervisor runs each case in a separate process and retains
-its STDOUT.LOG, STDERR.LOG, and SUMMARY.CSV entry under ``[.RESULTS]``.
+Defaults are one repetition, seed 1, 200 iterations, and a 300-second deadline
+per case. There is no worker-count argument: each case uses the initial thread
+and two helpers. Iterations repeat the original three scenarios; each timer
+variant runs one sequence per child process regardless of the iteration count.
+Use repetitions to repeat all eight in fresh processes. The seed varies yield
+injection, not timer lengths. The supervisor retains each case's STDOUT.LOG,
+STDERR.LOG, and SUMMARY.CSV entry under ``[.RESULTS]``.
 
 Use ``BOTH`` or ``UPCALLS``. Builds with ``KERNEL`` or ``NONE`` and non-OpenVMS
 host builds report these cases UNSUPPORTED. The tests use public services and
@@ -565,7 +598,9 @@ The QIO/AST case adds partial native coverage of interrupt-safe CV signalling
 with persistent I/O slots, cross-thread waiting, and slot reuse. The separate
 mixed case adds loopback TCP AST completion and local HIBER/WAKE dispatch.
 The disabled-AST cases check SETAST state, overlapping disabling threads,
-progress while delivery is disabled, and deferred callback delivery.
+progress while delivery is disabled, and deferred callback delivery. Timer
+variants cover condition timed waits, worker exits, ordinary CRTL output,
+timestamp conversion, and unrelated worker enables while main holds a disable.
 Intentional crash probes are diagnostic checks, excluded from API coverage.
 
 Planned work includes the full attributes/error matrix, scheduling/priorities,
@@ -604,6 +639,7 @@ For the supplemental native workloads and dump diagnostics, also run::
     python3 TOOLS/CHECK_QIO.py
     python3 TOOLS/CHECK_QIO_MIXED.py
     python3 TOOLS/CHECK_AST.py
+    python3 TOOLS/CHECK_AST_TIMER.py
     python3 TOOLS/CHECK_CRASH.py
     python3 TOOLS/CHECK_DUMP.py
 
@@ -617,3 +653,7 @@ not create or validate an actual OpenVMS image dump.
 CHECK_AST compiles the native AST cases against a host service model with real
 pthread helpers. Fault injection checks the test assertions as well as successful
 delivery. It does not emulate the OpenVMS scheduler, AST ABI, or memory ordering.
+CHECK_AST_TIMER similarly validates the timer variants with real host waits and
+simulated timer/AST services, including premature, missing, and duplicate
+callbacks, spurious waits, and service errors. Native runs are still required
+to determine whether the installed runtime exhibits the reported behavior.

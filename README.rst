@@ -7,7 +7,7 @@ OpenVMS port of a selected Open POSIX Test Suite subset. This repository
 is derived from Linux Test Project.
 
 The initial subset includes 19 unchanged upstream conformance cases,
-15 supplemental regression/stress cases, an API coverage inventory, and a
+20 supplemental regression/stress cases, an API coverage inventory, and a
 native process supervisor. Unrelated Linux kernel tests and unused LTP build
 infrastructure have been removed. Upstream history and attribution are retained.
 
@@ -86,12 +86,18 @@ Disabled-AST regressions are included in normal runs and can be selected alone::
     $ @RUN_AST 1 12345 200 300
     $ @RUN_AST 100 12345 2000 300 STOP_ON_CRASH
 
-The three cases check main-thread disabling, overlapping worker disables, and
-an AST that disables delivery of a queued follower. Each verifies progress while
-ASTs are disabled and exactly-once delivery after re-enabling. The arguments are
-repeats, seed, iterations, timeout seconds per case, and optional crash policy;
-these tests use a fixed initial thread plus two helpers. They target Alpha,
-IA64, and x86 with upcalls enabled; native validation is required on each target.
+The eight cases check main-thread disabling, overlapping worker disables, an
+AST that disables a queued follower, and timer ASTs pending across condition
+timed waits and worker exits. Timer variants compare minimal output, concurrent
+printf calls with and without explicit flushing, serialized timestamp/CRTL
+calls, and an unrelated worker enabling ASTs. Callback counters determine
+pass/fail; printed order does not.
+
+The arguments are repeats, seed, iterations, timeout seconds per case, and
+optional crash policy. The original three cases use the iteration count; each
+timer variant runs one sequence per child process, so use repeats to run it
+again. All use a fixed initial thread plus two helpers and target Alpha, IA64,
+and x86 with upcalls enabled. Native validation is required on each target.
 See the detailed instructions for profiles and timeout interpretation.
 
 To deliberately crash an isolated pthread worker and check dump artifacts::

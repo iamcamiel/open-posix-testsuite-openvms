@@ -35,14 +35,14 @@ pthread_cancel,declared_vms,partial,PT_CANCEL_WAIT,PT_CANCEL_WAIT,No claim of co
 pthread_cleanup_pop,declared_vms,partial,PT_CANCEL_WAIT,"PT_CLEANUP_PUSH_1_1,PT_CANCEL_WAIT",No claim of complete assertion coverage or VMS runtime validation
 pthread_cleanup_push,declared_vms,partial,"PT_CLEANUP_PUSH_1_1,PT_CANCEL_WAIT","PT_CLEANUP_PUSH_1_1,PT_CANCEL_WAIT",No claim of complete assertion coverage or VMS runtime validation
 pthread_cond_broadcast,declared_vms,partial,PT_COND_BROADCAST,"PT_COND_HANDOFF,PT_COND_BROADCAST,PT_ONCE_TSD,PT_QIO_AST,PT_QIO_MIXED,PT_AST_MAIN,PT_AST_WORKER,PT_AST_CALLBACK",No claim of complete assertion coverage or VMS runtime validation
-pthread_cond_destroy,declared_vms,partial,"PT_COND_DESTROY_1_1,PT_CV_CHURN","PT_COND_DESTROY_1_1,PT_LIFECYCLE,PT_COND_HANDOFF,PT_COND_BROADCAST,PT_COND_TIMEOUT,PT_CANCEL_WAIT,PT_ONCE_TSD,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED,PT_AST_MAIN,PT_AST_WORKER,PT_AST_CALLBACK",No claim of complete assertion coverage or VMS runtime validation
+pthread_cond_destroy,declared_vms,partial,"PT_COND_DESTROY_1_1,PT_CV_CHURN","PT_COND_DESTROY_1_1,PT_LIFECYCLE,PT_COND_HANDOFF,PT_COND_BROADCAST,PT_COND_TIMEOUT,PT_CANCEL_WAIT,PT_ONCE_TSD,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED,PT_AST_MAIN,PT_AST_WORKER,PT_AST_CALLBACK,PT_AST_TIMER,PT_AST_TIMER_PRINTF,PT_AST_TIMER_FLUSH,PT_AST_TIMER_CRTL,PT_AST_TIMER_ENABLE",No claim of complete assertion coverage or VMS runtime validation
 pthread_cond_getname_np,declared_vms,planned,,,VMS extension; requires dedicated semantics review
-pthread_cond_init,declared_vms,partial,"PT_COND_INIT_1_1,PT_CV_CHURN","PT_COND_INIT_1_1,PT_COND_DESTROY_1_1,PT_COND_TIMEOUT,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED",No claim of complete assertion coverage or VMS runtime validation
+pthread_cond_init,declared_vms,partial,"PT_COND_INIT_1_1,PT_CV_CHURN","PT_COND_INIT_1_1,PT_COND_DESTROY_1_1,PT_COND_TIMEOUT,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED,PT_AST_TIMER,PT_AST_TIMER_PRINTF,PT_AST_TIMER_FLUSH,PT_AST_TIMER_CRTL,PT_AST_TIMER_ENABLE",No claim of complete assertion coverage or VMS runtime validation
 pthread_cond_setname_np,declared_vms,exercised_only,,"PT_QIO_AST,PT_QIO_MIXED",VMS extension; requires dedicated semantics review
 pthread_cond_sig_preempt_int_np,declared_vms,planned,,,VMS extension; requires dedicated semantics review
 pthread_cond_signal,declared_vms,partial,"PT_COND_HANDOFF,PT_CV_CHURN,PT_QIO_MIXED","PT_LIFECYCLE,PT_COND_HANDOFF,PT_COND_BROADCAST,PT_CANCEL_WAIT,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED,PT_AST_MAIN,PT_AST_WORKER,PT_AST_CALLBACK",No claim of complete assertion coverage or VMS runtime validation
 pthread_cond_signal_int_np,declared_vms,partial,"PT_QIO_AST,PT_QIO_MIXED","PT_QIO_AST,PT_QIO_MIXED",Native QIO/AST stress; target validation pending
-pthread_cond_timedwait,declared_vms,partial,PT_COND_TIMEOUT,PT_COND_TIMEOUT,No claim of complete assertion coverage or VMS runtime validation
+pthread_cond_timedwait,declared_vms,partial,PT_COND_TIMEOUT,"PT_COND_TIMEOUT,PT_AST_TIMER,PT_AST_TIMER_PRINTF,PT_AST_TIMER_FLUSH,PT_AST_TIMER_CRTL,PT_AST_TIMER_ENABLE",No claim of complete assertion coverage or VMS runtime validation
 pthread_cond_wait,declared_vms,partial,"PT_COND_HANDOFF,PT_COND_BROADCAST,PT_CANCEL_WAIT,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED","PT_LIFECYCLE,PT_COND_HANDOFF,PT_COND_BROADCAST,PT_CANCEL_WAIT,PT_ONCE_TSD,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED,PT_AST_MAIN,PT_AST_WORKER,PT_AST_CALLBACK",No claim of complete assertion coverage or VMS runtime validation
 pthread_condattr_destroy,declared_vms,exercised_only,,PT_COND_DESTROY_1_1,No claim of complete assertion coverage or VMS runtime validation
 pthread_condattr_getclock,not_declared,excluded,,,No claim of complete assertion coverage or VMS runtime validation
@@ -50,7 +50,7 @@ pthread_condattr_getpshared,declared_vms,planned,,,No claim of complete assertio
 pthread_condattr_init,declared_vms,exercised_only,,"PT_COND_INIT_1_1,PT_COND_DESTROY_1_1",No claim of complete assertion coverage or VMS runtime validation
 pthread_condattr_setclock,not_declared,excluded,,,No claim of complete assertion coverage or VMS runtime validation
 pthread_condattr_setpshared,declared_vms,planned,,,No claim of complete assertion coverage or VMS runtime validation
-pthread_create,declared_vms,partial,"PT_CREATE_1_1,PT_LIFECYCLE","PT_CREATE_1_1,PT_JOIN_1_1,PT_EQUAL_1_1,PT_CLEANUP_PUSH_1_1,PT_LIFECYCLE,PT_MUTEX_TYPES,PT_COND_HANDOFF,PT_COND_BROADCAST,PT_CANCEL_WAIT,PT_ONCE_TSD,PT_RWLOCK,PT_MUTEX_STRESS,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED,PT_AST_MAIN,PT_AST_WORKER,PT_AST_CALLBACK",No claim of complete assertion coverage or VMS runtime validation
+pthread_create,declared_vms,partial,"PT_CREATE_1_1,PT_LIFECYCLE","PT_CREATE_1_1,PT_JOIN_1_1,PT_EQUAL_1_1,PT_CLEANUP_PUSH_1_1,PT_LIFECYCLE,PT_MUTEX_TYPES,PT_COND_HANDOFF,PT_COND_BROADCAST,PT_CANCEL_WAIT,PT_ONCE_TSD,PT_RWLOCK,PT_MUTEX_STRESS,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED,PT_AST_MAIN,PT_AST_WORKER,PT_AST_CALLBACK,PT_AST_TIMER,PT_AST_TIMER_PRINTF,PT_AST_TIMER_FLUSH,PT_AST_TIMER_CRTL,PT_AST_TIMER_ENABLE",No claim of complete assertion coverage or VMS runtime validation
 pthread_debug,obsolete,excluded,,,No claim of complete assertion coverage or VMS runtime validation
 pthread_debug_cmd,obsolete,excluded,,,No claim of complete assertion coverage or VMS runtime validation
 pthread_delay_np,declared_vms,planned,,,VMS extension; requires dedicated semantics review
@@ -66,7 +66,7 @@ pthread_getschedparam,declared_vms,planned,,,No claim of complete assertion cove
 pthread_getselfseq_np,declared_vms,planned,,,VMS extension; requires dedicated semantics review
 pthread_getsequence_np,declared_vms,planned,,,VMS extension; requires dedicated semantics review
 pthread_getspecific,declared_vms,partial,"PT_GETSPECIFIC_1_1,PT_ONCE_TSD","PT_KEY_CREATE_1_1,PT_GETSPECIFIC_1_1,PT_SETSPECIFIC_1_1,PT_ONCE_TSD",No claim of complete assertion coverage or VMS runtime validation
-pthread_join,declared_vms,partial,"PT_JOIN_1_1,PT_LIFECYCLE","PT_CREATE_1_1,PT_JOIN_1_1,PT_CLEANUP_PUSH_1_1,PT_LIFECYCLE,PT_MUTEX_TYPES,PT_COND_HANDOFF,PT_COND_BROADCAST,PT_CANCEL_WAIT,PT_ONCE_TSD,PT_RWLOCK,PT_MUTEX_STRESS,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED,PT_AST_MAIN,PT_AST_WORKER,PT_AST_CALLBACK",No claim of complete assertion coverage or VMS runtime validation
+pthread_join,declared_vms,partial,"PT_JOIN_1_1,PT_LIFECYCLE","PT_CREATE_1_1,PT_JOIN_1_1,PT_CLEANUP_PUSH_1_1,PT_LIFECYCLE,PT_MUTEX_TYPES,PT_COND_HANDOFF,PT_COND_BROADCAST,PT_CANCEL_WAIT,PT_ONCE_TSD,PT_RWLOCK,PT_MUTEX_STRESS,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED,PT_AST_MAIN,PT_AST_WORKER,PT_AST_CALLBACK,PT_AST_TIMER,PT_AST_TIMER_PRINTF,PT_AST_TIMER_FLUSH,PT_AST_TIMER_CRTL,PT_AST_TIMER_ENABLE",No claim of complete assertion coverage or VMS runtime validation
 pthread_join32,declared_vms,planned,,,No claim of complete assertion coverage or VMS runtime validation
 pthread_join64,declared_vms,planned,,,No claim of complete assertion coverage or VMS runtime validation
 pthread_key_create,declared_vms,partial,"PT_KEY_CREATE_1_1,PT_ONCE_TSD","PT_KEY_CREATE_1_1,PT_KEY_DELETE_1_1,PT_GETSPECIFIC_1_1,PT_SETSPECIFIC_1_1,PT_ONCE_TSD",No claim of complete assertion coverage or VMS runtime validation
@@ -78,17 +78,17 @@ pthread_key_validate_np,declared_vms,planned,,,VMS extension; requires dedicated
 pthread_kill,unix_only,excluded,,,No claim of complete assertion coverage or VMS runtime validation
 pthread_lock_global_np,declared_vms,planned,,,VMS extension; requires dedicated semantics review
 pthread_mutex_consistent,not_declared,excluded,,,No claim of complete assertion coverage or VMS runtime validation
-pthread_mutex_destroy,declared_vms,partial,PT_MUTEX_DESTROY_1_1,"PT_MUTEX_DESTROY_1_1,PT_LIFECYCLE,PT_MUTEX_TYPES,PT_COND_HANDOFF,PT_COND_BROADCAST,PT_COND_TIMEOUT,PT_CANCEL_WAIT,PT_ONCE_TSD,PT_MUTEX_STRESS,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED,PT_AST_MAIN,PT_AST_WORKER,PT_AST_CALLBACK",No claim of complete assertion coverage or VMS runtime validation
+pthread_mutex_destroy,declared_vms,partial,PT_MUTEX_DESTROY_1_1,"PT_MUTEX_DESTROY_1_1,PT_LIFECYCLE,PT_MUTEX_TYPES,PT_COND_HANDOFF,PT_COND_BROADCAST,PT_COND_TIMEOUT,PT_CANCEL_WAIT,PT_ONCE_TSD,PT_MUTEX_STRESS,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED,PT_AST_MAIN,PT_AST_WORKER,PT_AST_CALLBACK,PT_AST_TIMER,PT_AST_TIMER_PRINTF,PT_AST_TIMER_FLUSH,PT_AST_TIMER_CRTL,PT_AST_TIMER_ENABLE",No claim of complete assertion coverage or VMS runtime validation
 pthread_mutex_getname_np,declared_vms,planned,,,VMS extension; requires dedicated semantics review
 pthread_mutex_getprioceiling,unix_only,excluded,,,No claim of complete assertion coverage or VMS runtime validation
-pthread_mutex_init,declared_vms,partial,PT_MUTEX_INIT_1_1,"PT_MUTEX_INIT_1_1,PT_MUTEX_DESTROY_1_1,PT_MUTEX_TYPES,PT_COND_TIMEOUT,PT_CANCEL_WAIT,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED",No claim of complete assertion coverage or VMS runtime validation
-pthread_mutex_lock,declared_vms,partial,"PT_MUTEX_TYPES,PT_MUTEX_STRESS","PT_MUTEX_UNLOCK_1_1,PT_LIFECYCLE,PT_MUTEX_TYPES,PT_COND_HANDOFF,PT_COND_BROADCAST,PT_COND_TIMEOUT,PT_CANCEL_WAIT,PT_ONCE_TSD,PT_MUTEX_STRESS,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED,PT_AST_MAIN,PT_AST_WORKER,PT_AST_CALLBACK",No claim of complete assertion coverage or VMS runtime validation
+pthread_mutex_init,declared_vms,partial,PT_MUTEX_INIT_1_1,"PT_MUTEX_INIT_1_1,PT_MUTEX_DESTROY_1_1,PT_MUTEX_TYPES,PT_COND_TIMEOUT,PT_CANCEL_WAIT,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED,PT_AST_TIMER,PT_AST_TIMER_PRINTF,PT_AST_TIMER_FLUSH,PT_AST_TIMER_CRTL,PT_AST_TIMER_ENABLE",No claim of complete assertion coverage or VMS runtime validation
+pthread_mutex_lock,declared_vms,partial,"PT_MUTEX_TYPES,PT_MUTEX_STRESS","PT_MUTEX_UNLOCK_1_1,PT_LIFECYCLE,PT_MUTEX_TYPES,PT_COND_HANDOFF,PT_COND_BROADCAST,PT_COND_TIMEOUT,PT_CANCEL_WAIT,PT_ONCE_TSD,PT_MUTEX_STRESS,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED,PT_AST_MAIN,PT_AST_WORKER,PT_AST_CALLBACK,PT_AST_TIMER,PT_AST_TIMER_PRINTF,PT_AST_TIMER_FLUSH,PT_AST_TIMER_CRTL,PT_AST_TIMER_ENABLE",No claim of complete assertion coverage or VMS runtime validation
 pthread_mutex_setname_np,declared_vms,exercised_only,,"PT_QIO_AST,PT_QIO_MIXED",VMS extension; requires dedicated semantics review
 pthread_mutex_setprioceiling,unix_only,excluded,,,No claim of complete assertion coverage or VMS runtime validation
 pthread_mutex_timedlock,not_declared,excluded,,,No claim of complete assertion coverage or VMS runtime validation
 pthread_mutex_tryforcedlock_np,declared_vms,planned,,,VMS extension; requires dedicated semantics review
 pthread_mutex_trylock,declared_vms,partial,PT_MUTEX_TYPES,"PT_MUTEX_UNLOCK_1_1,PT_MUTEX_TYPES,PT_CANCEL_WAIT",No claim of complete assertion coverage or VMS runtime validation
-pthread_mutex_unlock,declared_vms,partial,"PT_MUTEX_UNLOCK_1_1,PT_MUTEX_TYPES,PT_MUTEX_STRESS","PT_MUTEX_UNLOCK_1_1,PT_LIFECYCLE,PT_MUTEX_TYPES,PT_COND_HANDOFF,PT_COND_BROADCAST,PT_COND_TIMEOUT,PT_CANCEL_WAIT,PT_ONCE_TSD,PT_MUTEX_STRESS,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED,PT_AST_MAIN,PT_AST_WORKER,PT_AST_CALLBACK",No claim of complete assertion coverage or VMS runtime validation
+pthread_mutex_unlock,declared_vms,partial,"PT_MUTEX_UNLOCK_1_1,PT_MUTEX_TYPES,PT_MUTEX_STRESS","PT_MUTEX_UNLOCK_1_1,PT_LIFECYCLE,PT_MUTEX_TYPES,PT_COND_HANDOFF,PT_COND_BROADCAST,PT_COND_TIMEOUT,PT_CANCEL_WAIT,PT_ONCE_TSD,PT_MUTEX_STRESS,PT_CV_CHURN,PT_QIO_AST,PT_QIO_MIXED,PT_AST_MAIN,PT_AST_WORKER,PT_AST_CALLBACK,PT_AST_TIMER,PT_AST_TIMER_PRINTF,PT_AST_TIMER_FLUSH,PT_AST_TIMER_CRTL,PT_AST_TIMER_ENABLE",No claim of complete assertion coverage or VMS runtime validation
 pthread_mutexattr_destroy,declared_vms,exercised_only,,"PT_MUTEX_DESTROY_1_1,PT_MUTEXATTR_SETTYPE_1_1,PT_MUTEX_TYPES,PT_COND_TIMEOUT,PT_CANCEL_WAIT",No claim of complete assertion coverage or VMS runtime validation
 pthread_mutexattr_getprioceiling,unix_only,excluded,,,No claim of complete assertion coverage or VMS runtime validation
 pthread_mutexattr_getprotocol,unix_only,excluded,,,No claim of complete assertion coverage or VMS runtime validation
@@ -138,4 +138,4 @@ pthread_testcancel,declared_vms,planned,,,No claim of complete assertion coverag
 pthread_unchecked_getspecific_np,declared_vms,planned,,,VMS extension; requires dedicated semantics review
 pthread_unchecked_setspecific_np,declared_vms,planned,,,VMS extension; requires dedicated semantics review
 pthread_unlock_global_np,declared_vms,planned,,,VMS extension; requires dedicated semantics review
-pthread_yield_np,declared_vms,exercised_only,,"PT_QIO_AST,PT_QIO_MIXED,PT_AST_MAIN,PT_AST_WORKER,PT_AST_CALLBACK",VMS extension; requires dedicated semantics review
+pthread_yield_np,declared_vms,exercised_only,,"PT_QIO_AST,PT_QIO_MIXED,PT_AST_MAIN,PT_AST_WORKER,PT_AST_CALLBACK,PT_AST_TIMER,PT_AST_TIMER_PRINTF,PT_AST_TIMER_FLUSH,PT_AST_TIMER_CRTL,PT_AST_TIMER_ENABLE",VMS extension; requires dedicated semantics review
