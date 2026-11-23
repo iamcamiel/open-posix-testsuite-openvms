@@ -1,4 +1,5 @@
 .. SPDX-License-Identifier: GPL-2.0-or-later
+.. X-1 CV Camiel Vanderhoeven 23-Nov-2026. Document the final-AST cases.
 
 Open POSIX tests for OpenVMS
 ============================
@@ -93,11 +94,12 @@ Disabled-AST regressions are included in normal runs and can be selected alone::
     $ @RUN_AST 1 12345 200 300
     $ @RUN_AST 100 12345 2000 300 STOP_ON_CRASH
 
-The eight cases check main-thread disabling, overlapping worker disables, an
+The ten cases check main-thread disabling, overlapping worker disables, an
 AST that disables a queued follower, and timer ASTs pending across condition
 timed waits and worker exits. Timer variants compare minimal output, concurrent
 printf calls with and without explicit flushing, serialized timestamp/CRTL
-calls, and an unrelated worker enabling ASTs. Callback counters determine
+calls, and an unrelated worker enabling ASTs. Two cases release one final
+queued AST while the initial thread polls or joins its worker. Callback counters determine
 pass/fail; printed order does not.
 
 The arguments are repeats, seed, iterations, timeout seconds per case, and

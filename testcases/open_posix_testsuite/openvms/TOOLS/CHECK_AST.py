@@ -2,12 +2,14 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Copyright 2026 iamcamiel
 # Copyright 2026 VMS Software, Inc.
+# X-3 CV Camiel Vanderhoeven 23-Nov-2026: Exercise both final-AST case protocols.
 # X-2 CV Camiel Vanderhoeven 17-Nov-2026: Check expanded timer-case selection.
 # X-1 CV Camiel Vanderhoeven 17-Nov-2026: Validate disabled-AST assertions.
 """Compile the native AST tests against controlled host service substitutes.
 
 Real host pthreads execute the command workers. Simulated ASTs execute serially
-on the initial thread at service/yield boundaries. This verifies test control
+at service/yield boundaries. The final-AST cases also allow the worker to
+simulate a callback while main spins or joins. This verifies test control
 flow, disable accounting, and detection of deliberately broken delivery. It
 does not validate OpenVMS system-service ABI, scheduler or actual AST delivery.
 """
@@ -22,7 +24,8 @@ import tempfile
 
 
 PORT = Path(__file__).resolve().parent.parent
-CASES = ("PT_AST_MAIN", "PT_AST_WORKER", "PT_AST_CALLBACK")
+LAST_CASES = ("PT_AST_LAST_RUN", "PT_AST_LAST_JOIN")
+CASES = ("PT_AST_MAIN", "PT_AST_WORKER", "PT_AST_CALLBACK") + LAST_CASES
 SELECTED_CASES = CASES + ("PT_AST_TIMER", "PT_AST_TIMER_PRINTF",
                           "PT_AST_TIMER_FLUSH", "PT_AST_TIMER_CRTL",
                           "PT_AST_TIMER_ENABLE")
@@ -52,6 +55,7 @@ def check_selection():
     assert "if .not. found_timer .or. .not. found_timer_crtl" in script
     assert "if .not. found_timer_printf .or. .not. found_timer_enable" in script
     assert "if .not. found_timer_flush then goto missing" in script
+    assert "if .not. found_last_run .or. .not. found_last_join then goto missing" in script
     assert 'if p3 .eqs. "" then p3 = "200"' in script
     assert 'if p4 .eqs. "" then p4 = "300"' in script
     print("AST manifest and DCL selection contracts: PASS (static checks)", flush=True)
@@ -67,6 +71,9 @@ HEADER = r'''
 #define SS$_WASCLR 17
 #define SS$_EXQUOTA 28
 #define SS$_ABORT 44
+#define JPI$_KT_COUNT 1
+int lib$getjpi(const int *, void *, void *, int *);
+unsigned long pthread_getselfseq_np(void);
 unsigned int sys$dclast(void (*)(unsigned long long), unsigned long long,
                        unsigned int);
 unsigned int sys$setast(unsigned int);
@@ -102,7 +109,20 @@ static struct sim_ast sim_queue[64];
 static unsigned int sim_count, sim_disablers, sim_active;
 static unsigned long sim_queued, sim_delivered, sim_services;
 static _Thread_local unsigned int sim_disabled;
+static _Thread_local int sim_main_ast;
 static int sim_mode, sim_injected, sim_bad_first_enable;
+
+unsigned long pthread_getselfseq_np(void)
+{
+    return pthread_equal(pthread_self(), sim_main) || sim_main_ast ? 1UL : 2UL;
+}
+
+int lib$getjpi(const int *item, void *pid, void *name, int *value)
+{
+    assert(*item == JPI$_KT_COUNT && pid == NULL && name == NULL);
+    *value = sim_mode == 8 ? 1 : 2;
+    return SS$_NORMAL;
+}
 
 /* Fault modes: 1 early, 2 one disabler incorrectly enables everybody,
  * 3 duplicate, 4 lost, 5 DCLAST quota error, 6 SETAST service error,
@@ -111,8 +131,13 @@ static void sim_dispatch(void)
 {
     struct sim_ast job;
     int duplicate;
+#ifndef PTS_LAST_JOIN
     if (!pthread_equal(pthread_self(), sim_main))
         return;
+#endif
+    /* The final-AST host model executes the callback on the posting worker
+     * so it can test the outcome logic while main spins or joins. Native
+     * delivery to the initial thread requires an OpenVMS run. */
     for (;;) {
         assert(pthread_mutex_lock(&sim_lock) == 0);
         if (sim_active || !sim_count ||
@@ -128,8 +153,10 @@ static void sim_dispatch(void)
         duplicate = sim_mode == 3 && !sim_injected;
         if (duplicate) sim_injected = 1;
         assert(pthread_mutex_unlock(&sim_lock) == 0);
+        sim_main_ast = sim_mode != 9;
         job.callback(job.token);
         if (duplicate) job.callback(job.token);
+        sim_main_ast = 0;
         assert(pthread_mutex_lock(&sim_lock) == 0);
         sim_delivered += duplicate ? 2 : 1;
         sim_active = 0;
@@ -264,7 +291,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="pts-ast-check-") as directory:
         temp = Path(directory)
         (temp / "AST_STUB.H").write_text(HEADER)
-        for header in ("builtins.h", "ssdef.h", "starlet.h"):
+        for header in ("builtins.h", "ssdef.h", "starlet.h", "jpidef.h", "lib$routines.h"):
             (temp / header).write_text('#include "AST_STUB.H"\n')
         shutil.copyfile(PORT.parent / "include/posixtest.h",
                         temp / "PTS_ORIGINAL.H")
@@ -286,6 +313,9 @@ def main():
                          ("stale callback generation", 7, 1)]
             if case == "PT_AST_WORKER":
                 scenarios.append(("first disabler releases all", 2, 1))
+            if case in LAST_CASES:
+                scenarios.append(("single kernel thread", 8, 4))
+                scenarios.append(("wrong application thread", 9, 1))
             for label, mode, expected in scenarios:
                 try:
                     iterations = "50" if mode == 0 else "4"

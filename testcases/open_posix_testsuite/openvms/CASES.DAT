@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
+# X-6 CV Camiel Vanderhoeven 23-Nov-2026: Cover one final AST on a running or joining T1.
 # X-5 CV Camiel Vanderhoeven 23-Nov-2026: Add native RMS/AST stress variants.
 # X-4 CV Camiel Vanderhoeven 17-Nov-2026: Add timer ASTs across timed waits.
 # X-3 CV Camiel Vanderhoeven 17-Nov-2026: Add disabled-AST regressions.
@@ -46,3 +47,5 @@ PT_AST_TIMER_PRINTF|openvms/LOCAL/PT_AST_TIMER_PRINTF.C|300|regression||timer_as
 PT_AST_TIMER_FLUSH|openvms/LOCAL/PT_AST_TIMER_FLUSH.C|300|regression||timer_ast_fence_preserved_with_concurrent_printf_and_fflush|local|ready
 PT_AST_TIMER_CRTL|openvms/LOCAL/PT_AST_TIMER_CRTL.C|300|regression||timer_ast_fence_preserved_with_normal_context_crtl_calls|local|ready
 PT_AST_TIMER_ENABLE|openvms/LOCAL/PT_AST_TIMER_ENABLE.C|300|regression||worker_enable_does_not_release_main_timer_ast_disable|local|ready
+PT_AST_LAST_RUN|openvms/LOCAL/PT_AST_LAST_RUN.C|300|regression||last_queued_process_ast_reaches_cpu_bound_initial_thread|local|ready
+PT_AST_LAST_JOIN|openvms/LOCAL/PT_AST_LAST_JOIN.C|300|regression||last_queued_process_ast_reaches_initial_thread_during_join|local|ready
