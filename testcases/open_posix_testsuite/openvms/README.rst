@@ -414,6 +414,53 @@ HIBER/WAKE workload needs pthread upcalls to avoid blocking its own producers.
 All three architectures and both pointer modes still require native validation;
 host service simulations cannot validate AST delivery or OpenVMS socket ABI.
 
+RMS read completion and AST stress
+----------------------------------
+
+``PT_RMS_AST_SPIN`` and ``PT_RMS_AST_YIELD`` exercise two native RMS read
+paths. The test creates ``PTS_RMS_AST.DAT;1`` with 512-byte fixed records in
+its case directory. Workers issue ``SYS$GET`` on independent RMS record
+streams, one outstanding request per stream. Both variants verify read
+completions and record contents in each phase:
+
+* Read-ahead uses synchronous ``SYS$GET`` with ``RAB$M_RAH`` and success and
+  error callbacks.
+* Asynchronous reads use ``RAB$M_ASY`` and ``RAB$M_SYNCSTS`` without read-ahead.
+  A successful run must see at least one ``RMS$_PENDING`` return in this phase.
+
+The initial thread retires reads in submission order. It yields in both
+variants while waiting for the oldest request's ``SYS$GET`` call to return.
+Once the call has returned, if a completion callback is still outstanding,
+``SPIN`` polls without an explicit yield and ``YIELD`` calls ``pthread_yield_np()``
+before retrying. A completed later read cannot pass an older pending read.
+
+Build and run from the ``OPENVMS`` directory::
+
+    $ @BUILD 64 BOTH
+    $ @RUN_RMS_AST 1 12345 8 200 300
+    $ @RUN_RMS_AST 100 12345 8 10000 300 CONTINUE YIELD
+    $ @RUN_RMS_AST 100 12345 8 10000 300 CONTINUE SPIN
+
+The selector interface is::
+
+    @RUN_RMS_AST [repeats [seed [threads [iterations [timeout_seconds [CONTINUE|STOP_ON_CRASH [BOTH|SPIN|YIELD]]]]]]]
+
+Defaults are one repeat, seed 1, eight workers, 2000 records per worker in
+each phase, a 300-second timeout covering both phases of each case,
+``CONTINUE``, and both variants. These cases accept 1 through 64 workers,
+plus the initial thread, and 1 through 200000 records per worker. Both are
+also in the normal ``@RUN`` selection.
+Compare the ``SPIN`` and ``YIELD`` results using the same settings on each RTL
+build. If all asynchronous reads complete inline, the run reports UNRESOLVED
+because the pending completion path was not exercised. The host build reports
+UNSUPPORTED because it cannot exercise RMS or pthread AST delivery.
+
+If a completion AST is stranded, the supervisor stops the child at the timeout
+and records TIMEOUT in ``SUMMARY.CSV``. Preserve that case's directory and
+logs for comparison. A TIMEOUT shows loss of progress or a workload exceeding
+the limit, so first check whether the same settings finish with a known-good
+RTL. ``STOP_ON_CRASH`` applies to CRASH results only.
+
 Intentional crash and dump checks
 --------------------------------
 

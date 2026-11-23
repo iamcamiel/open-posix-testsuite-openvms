@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
+# X-5 CV Camiel Vanderhoeven 23-Nov-2026: Add native RMS/AST stress variants.
 # X-4 CV Camiel Vanderhoeven 17-Nov-2026: Add timer ASTs across timed waits.
 # X-3 CV Camiel Vanderhoeven 17-Nov-2026: Add disabled-AST regressions.
 # X-2 CV Camiel Vanderhoeven 16-Nov-2026: Add native QIO/AST stress.
@@ -35,6 +36,8 @@ PT_MUTEX_STRESS|openvms/LOCAL/PT_MUTEX_STRESS.C|120|stress|pthread_mutex_lock,pt
 PT_CV_CHURN|openvms/LOCAL/PT_CV_CHURN.C|300|stress|pthread_cond_init,pthread_cond_wait,pthread_cond_signal,pthread_cond_destroy|legal_concurrent_condition_variable_lifetimes|local|ready
 PT_QIO_AST|openvms/LOCAL/PT_QIO_AST.C|300|stress|pthread_cond_signal_int_np,pthread_cond_wait|qio_ast_completion_cross_thread_wait_and_slot_reuse|local|ready
 PT_QIO_MIXED|openvms/LOCAL/PT_QIO_MIXED.C|300|stress|pthread_cond_signal_int_np,pthread_cond_wait,pthread_cond_signal|concurrent_disk_tcp_qio_and_local_wake_dispatch|local|ready
+PT_RMS_AST_SPIN|openvms/LOCAL/PT_RMS_AST_SPIN.C|300|stress||ordered_rms_read_ahead_and_async_completion_while_polling|local|ready
+PT_RMS_AST_YIELD|openvms/LOCAL/PT_RMS_AST_YIELD.C|300|stress||ordered_rms_read_ahead_and_async_completion_while_yielding|local|ready
 PT_AST_MAIN|openvms/LOCAL/PT_AST_MAIN.C|300|regression||setast_main_disable_idempotence_and_deferred_delivery|local|ready
 PT_AST_WORKER|openvms/LOCAL/PT_AST_WORKER.C|300|regression||setast_overlapping_worker_disables_and_final_enable|local|ready
 PT_AST_CALLBACK|openvms/LOCAL/PT_AST_CALLBACK.C|300|regression||ast_disables_pending_follower_until_main_reenables|local|ready
