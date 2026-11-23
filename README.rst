@@ -7,7 +7,7 @@ OpenVMS port of a selected Open POSIX Test Suite subset. This repository
 is derived from Linux Test Project.
 
 The initial subset includes 19 unchanged upstream conformance cases,
-20 supplemental regression/stress cases, an API coverage inventory, and a
+22 supplemental regression/stress cases, an API coverage inventory, and a
 native process supervisor. Unrelated Linux kernel tests and unused LTP build
 infrastructure have been removed. Upstream history and attribution are retained.
 
@@ -79,6 +79,13 @@ loopback TCP, and local communication workload is selected with::
 TCP stops starting new batches once the disk workers finish, and drains its
 last batch before closing the sockets. Local messaging completes its configured
 workload. Rebuild with ``@BUILD 64 BOTH`` after updating the test source.
+
+The RMS AST cases compare tight polling with yielding while waiting for the
+oldest outstanding read completion. Each runs a synchronous read-ahead phase
+with callbacks and an asynchronous read phase. Rebuild with ``@BUILD 64 BOTH``
+and run both variants with the external watchdog::
+
+    $ @RUN_RMS_AST 1 12345 8 200 300
 
 Disabled-AST regressions are included in normal runs and can be selected alone::
 
