@@ -430,7 +430,8 @@ completions and record contents in each phase:
 * Asynchronous reads use ``RAB$M_ASY`` without read-ahead. Completion ASTs
   are requested even when RMS completes a read synchronously.
 
-The initial thread retires reads in submission order. It yields in both
+The initial thread waits for a worker that retires reads in submission order.
+The worker yields in both
 variants while waiting for the oldest request's ``SYS$GET`` call to return.
 Once the call has returned, if a completion callback is still outstanding,
 ``SPIN`` polls without an explicit yield and ``YIELD`` calls ``pthread_yield_np()``
@@ -447,11 +448,11 @@ The selector interface is::
 
     @RUN_RMS_AST [repeats [seed [threads [iterations [timeout_seconds [CONTINUE|STOP_ON_CRASH [BOTH|SPIN|YIELD]]]]]]]
 
-Defaults are one repeat, seed 1, eight workers, 2000 records per worker in
+Defaults are one repeat, seed 1, eight read workers, 2000 records per worker in
 each phase, a 300-second timeout covering both phases of each case,
-``CONTINUE``, and both variants. These cases accept 1 through 64 workers,
-plus the initial thread, and 1 through 200000 records per worker. Both are
-also in the normal ``@RUN`` selection.
+``CONTINUE``, and both variants. These cases accept 1 through 64 read workers,
+plus the processing worker and the initial thread, and 1 through 200000 records
+per worker. Both are also in the normal ``@RUN`` selection.
 Compare the ``SPIN`` and ``YIELD`` results using the same settings on each RTL
 build. The counters show how many asynchronous reads returned ``RMS$_PENDING``.
 If this count is zero, the pending-read path was not exercised in that run.

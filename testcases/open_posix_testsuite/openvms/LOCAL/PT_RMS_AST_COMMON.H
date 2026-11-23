@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Copyright 2026 VMS Software, Inc.
+ * X-3 CV Camiel Vanderhoeven 23-Nov-2026: Process reads on a worker while
+ *     the default thread blocks, exercising AST delivery to the default thread.
  * X-2 CV Camiel Vanderhoeven 23-Nov-2026: Match the 32-bit RMS pointer types
  *     and request completion ASTs for synchronous asynchronous-mode reads.
  * X-1 CV Camiel Vanderhoeven 23-Nov-2026: Exercise ordered RMS completions.
@@ -51,6 +53,7 @@ static pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t queued_cv = PTHREAD_COND_INITIALIZER;
 static unsigned int pending[MAX_STREAMS], head, count;
 static const char *phase;
+static int missing_callbacks;
 
 static void rms_check(const char *operation, unsigned int status)
 {
@@ -170,24 +173,14 @@ static void *submit_reads(void *argument)
 	return NULL;
 }
 
-static int read_phase(int async, const pthread_attr_t *attr)
+static void *retire_reads(void *argument)
 {
-	pthread_t workers[MAX_STREAMS];
+	int async = *(int *)argument;
 	char expected[RECORD_BYTES];
 	unsigned long long total, retired, callbacks = 0, inline_gets = 0;
 	unsigned long long pending_gets = 0, waited = 0;
-	unsigned int i, index;
+	unsigned int index;
 	struct rms_stream *stream;
-
-	phase = async ? "asynchronous RMS" : "synchronous RMS with read-ahead";
-	printf("%s: %s, %lu streams, %lu records per stream\n", phase,
-	       PTS_RMS_AST_YIELD ? "yield" : "spin", pts_control.threads,
-	       pts_control.iterations);
-	fflush(stdout);
-	for (i = 0; i < pts_control.threads; ++i)
-		open_stream(i, async);
-	for (i = 0; i < pts_control.threads; ++i)
-		CHECK(pthread_create(&workers[i], attr, submit_reads, &streams[i]));
 
 	total = (unsigned long long)pts_control.threads * pts_control.iterations;
 	for (retired = 0; retired < total; ++retired) {
@@ -232,19 +225,41 @@ static int read_phase(int async, const pthread_attr_t *attr)
 		CHECK(pthread_cond_signal(&stream->retired_cv));
 		CHECK(pthread_mutex_unlock(&queue_mutex));
 	}
-	for (i = 0; i < pts_control.threads; ++i) {
-		CHECK(pthread_join(workers[i], NULL));
-		close_stream(&streams[i]);
-	}
 	printf("%s: %llu reads, %llu callbacks, %llu inline, %llu pending, %llu waits for AST\n",
 	       phase, total, callbacks, inline_gets, pending_gets, waited);
 	if (async && !callbacks) {
 		fprintf(stderr, "%s: no completion ASTs were observed\n", phase);
-		return PTS_UNRESOLVED;
+		return &missing_callbacks;
 	}
 	if (async && !pending_gets)
 		printf("%s: no reads returned RMS$_PENDING in this run\n", phase);
-	return PTS_PASS;
+	return NULL;
+}
+
+static int read_phase(int async, const pthread_attr_t *attr)
+{
+	pthread_t workers[MAX_STREAMS], processor;
+	void *processor_result;
+	unsigned int i;
+
+	phase = async ? "asynchronous RMS" : "synchronous RMS with read-ahead";
+	printf("%s: %s, %lu streams, %lu records per stream\n", phase,
+	       PTS_RMS_AST_YIELD ? "yield" : "spin", pts_control.threads,
+	       pts_control.iterations);
+	fflush(stdout);
+	for (i = 0; i < pts_control.threads; ++i)
+		open_stream(i, async);
+	CHECK(pthread_create(&processor, attr, retire_reads, &async));
+	for (i = 0; i < pts_control.threads; ++i)
+		CHECK(pthread_create(&workers[i], attr, submit_reads, &streams[i]));
+
+	/* The default thread blocks while a worker waits for ordered completions. */
+	CHECK(pthread_join(processor, &processor_result));
+	for (i = 0; i < pts_control.threads; ++i) {
+		CHECK(pthread_join(workers[i], NULL));
+		close_stream(&streams[i]);
+	}
+	return processor_result ? PTS_UNRESOLVED : PTS_PASS;
 }
 
 int test_main(int argc, char **argv)
