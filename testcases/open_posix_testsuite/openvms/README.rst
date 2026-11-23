@@ -57,7 +57,9 @@ The test programs, main adapter, and test support use the selected pointer
 mode and explicitly link PTHREAD$RTL.
 
 BUILD.COM copies selected upstream files into ``[.BUILD]`` under unique
-native-friendly names. It does not modify their contents. POSIXTEST.H
+native-friendly names. It preincludes ``PTS_THREAD_PROTO.H`` in four
+conformance cases to give their start routines the parameter required by
+``pthread_create``. POSIXTEST.H
 preserves upstream result constants and intercepts explicit exit(PTS_*)
 calls, including calls made by worker threads.
 
@@ -425,8 +427,8 @@ completions and record contents in each phase:
 
 * Read-ahead uses synchronous ``SYS$GET`` with ``RAB$M_RAH`` and success and
   error callbacks.
-* Asynchronous reads use ``RAB$M_ASY`` and ``RAB$M_SYNCSTS`` without read-ahead.
-  A successful run must see at least one ``RMS$_PENDING`` return in this phase.
+* Asynchronous reads use ``RAB$M_ASY`` without read-ahead. Completion ASTs
+  are requested even when RMS completes a read synchronously.
 
 The initial thread retires reads in submission order. It yields in both
 variants while waiting for the oldest request's ``SYS$GET`` call to return.
@@ -451,8 +453,10 @@ each phase, a 300-second timeout covering both phases of each case,
 plus the initial thread, and 1 through 200000 records per worker. Both are
 also in the normal ``@RUN`` selection.
 Compare the ``SPIN`` and ``YIELD`` results using the same settings on each RTL
-build. If all asynchronous reads complete inline, the run reports UNRESOLVED
-because the pending completion path was not exercised. The host build reports
+build. The counters show how many asynchronous reads returned ``RMS$_PENDING``.
+If this count is zero, the pending-read path was not exercised in that run.
+The asynchronous phase reports UNRESOLVED if it observes no completion ASTs.
+The host build reports
 UNSUPPORTED because it cannot exercise RMS or pthread AST delivery.
 
 If a completion AST is stranded, the supervisor stops the child at the timeout

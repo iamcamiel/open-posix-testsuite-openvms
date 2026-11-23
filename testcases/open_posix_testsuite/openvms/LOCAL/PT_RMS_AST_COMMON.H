@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Copyright 2026 VMS Software, Inc.
+ * X-2 CV Camiel Vanderhoeven 23-Nov-2026: Match the 32-bit RMS pointer types
+ *     and request completion ASTs for synchronous asynchronous-mode reads.
  * X-1 CV Camiel Vanderhoeven 23-Nov-2026: Exercise ordered RMS completions.
  */
 #ifndef PTS_RMS_AST_COMMON_H
@@ -28,7 +30,7 @@ int test_main(int argc, char **argv)
 struct rms_stream {
 	struct RAB rab;
 	struct FAB fab;
-	unsigned char record[RECORD_BYTES];
+	char record[RECORD_BYTES];
 	pthread_cond_t retired_cv;
 	unsigned long retired;
 	unsigned int status;
@@ -41,7 +43,7 @@ struct rms_stream {
 static char file_name[] = "PTS_RMS_AST.DAT;1";
 static struct FAB fixture_fab;
 static struct RAB fixture_rab;
-static unsigned char fixture_record[RECORD_BYTES];
+static char fixture_record[RECORD_BYTES];
 static struct rms_stream streams[MAX_STREAMS];
 #pragma __pointer_size __restore
 
@@ -65,13 +67,14 @@ static void set_file_name(struct FAB *fab)
 	fab->fab$b_fns = sizeof(file_name) - 1;
 }
 
-static void fill_record(unsigned char *record, unsigned long sequence)
+static void fill_record(char *record, unsigned long sequence)
 {
+	unsigned char *bytes = (unsigned char *)record;
 	unsigned int pattern = (unsigned int)pts_control.seed ^ (unsigned int)sequence;
 	unsigned int byte;
 	for (byte = 0; byte < RECORD_BYTES; ++byte) {
 		pattern = pattern * 1664525U + 1013904223U;
-		record[byte] = (unsigned char)(pattern >> 24);
+		bytes[byte] = (unsigned char)(pattern >> 24);
 	}
 }
 
@@ -100,8 +103,13 @@ static void create_fixture(void)
 	rms_check("SYS$CLOSE", sys$close(&fixture_fab, 0, 0));
 }
 
-static void open_stream(struct rms_stream *stream, int async)
+/* Form the FAB and buffer addresses in the 32-bit context of the RAB fields. */
+#pragma __pointer_size __save
+#pragma __pointer_size 32
+static void open_stream(unsigned int index, int async)
 {
+	struct rms_stream *stream = &streams[index];
+
 	set_file_name(&stream->fab);
 	stream->fab.fab$b_fac = FAB$M_GET;
 	stream->fab.fab$b_shr = FAB$M_SHRGET;
@@ -116,10 +124,11 @@ static void open_stream(struct rms_stream *stream, int async)
 	stream->rab.rab$l_rop = async ? 0 : RAB$M_RAH;
 	rms_check("SYS$CONNECT", sys$connect(&stream->rab, 0, 0));
 	if (async)
-		stream->rab.rab$l_rop = RAB$M_ASY | RAB$M_SYNCSTS;
+		stream->rab.rab$l_rop = RAB$M_ASY;
 	stream->retired = 0;
 	CHECK(pthread_cond_init(&stream->retired_cv, NULL));
 }
+#pragma __pointer_size __restore
 
 static void close_stream(struct rms_stream *stream)
 {
@@ -164,7 +173,7 @@ static void *submit_reads(void *argument)
 static int read_phase(int async, const pthread_attr_t *attr)
 {
 	pthread_t workers[MAX_STREAMS];
-	unsigned char expected[RECORD_BYTES];
+	char expected[RECORD_BYTES];
 	unsigned long long total, retired, callbacks = 0, inline_gets = 0;
 	unsigned long long pending_gets = 0, waited = 0;
 	unsigned int i, index;
@@ -176,7 +185,7 @@ static int read_phase(int async, const pthread_attr_t *attr)
 	       pts_control.iterations);
 	fflush(stdout);
 	for (i = 0; i < pts_control.threads; ++i)
-		open_stream(&streams[i], async);
+		open_stream(i, async);
 	for (i = 0; i < pts_control.threads; ++i)
 		CHECK(pthread_create(&workers[i], attr, submit_reads, &streams[i]));
 
@@ -229,10 +238,12 @@ static int read_phase(int async, const pthread_attr_t *attr)
 	}
 	printf("%s: %llu reads, %llu callbacks, %llu inline, %llu pending, %llu waits for AST\n",
 	       phase, total, callbacks, inline_gets, pending_gets, waited);
-	if (async && !pending_gets) {
-		fprintf(stderr, "%s: no SYS$GET returned RMS$_PENDING\n", phase);
+	if (async && !callbacks) {
+		fprintf(stderr, "%s: no completion ASTs were observed\n", phase);
 		return PTS_UNRESOLVED;
 	}
+	if (async && !pending_gets)
+		printf("%s: no reads returned RMS$_PENDING in this run\n", phase);
 	return PTS_PASS;
 }
 

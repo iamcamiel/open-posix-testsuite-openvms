@@ -1,4 +1,5 @@
 $! SPDX-License-Identifier: GPL-2.0-or-later
+$! X-3 CV Camiel Vanderhoeven 23-Nov-2026: Prototype legacy thread entry points.
 $! X-2 CV Camiel Vanderhoeven 17-Nov-2026: Build opt-in dump diagnostics and checker.
 $! X-1 CV Camiel Vanderhoeven 15-Nov-2026: Native OpenVMS build.
 $! @BUILD [32|64] [BOTH|UPCALLS|KERNEL|NONE] [pthread shareable image]
@@ -77,7 +78,13 @@ $ goto source_parts
 $source_filename:
 $ native_source = source_dir + "]" + component
 $ copy 'native_source' [.BUILD]'id'.C
-$ cc 'test_quals'/OBJECT=[.BUILD]'id'.OBJ/LIST=[.BUILD]'id'.LIS [.BUILD]'id'.C
+$ case_quals = test_quals
+$ if id .eqs. "PT_CREATE_1_1" .or. id .eqs. "PT_JOIN_1_1" .or. -
+     id .eqs. "PT_EQUAL_1_1" .or. id .eqs. "PT_CLEANUP_PUSH_1_1"
+$ then
+$     case_quals = case_quals + "/FIRST_INCLUDE=[.LOCAL]PTS_THREAD_PROTO.H"
+$ endif
+$ cc 'case_quals'/OBJECT=[.BUILD]'id'.OBJ/LIST=[.BUILD]'id'.LIS [.BUILD]'id'.C
 $ link 'thread_qual'/EXE=[.BUILD]'id'.EXE/MAP=[.BUILD]'id'.MAP -
        [.BUILD]'id'.OBJ,[.BUILD]PTS_MAIN.OBJ,[.BUILD]PTS_PORT_TEST.OBJ,-
        [.BUILD]PTS_SUPPORT.OBJ,[.BUILD]PTHREAD_LIBRARY.OPT/OPTIONS

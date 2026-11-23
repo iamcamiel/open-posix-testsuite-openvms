@@ -1,9 +1,11 @@
 #ifdef __VMS
-#pragma module PTS_MAIN "X-2"
+#pragma module PTS_MAIN "X-3"
 #endif
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Copyright 2026 iamcamiel
  * Copyright 2026 VMS Software, Inc.
+ * X-3  CV  Camiel Vanderhoeven  23-Nov-2026:
+ *     Use the platform compare-and-swap and widen main's argument vector.
  * X-2  CV  Camiel Vanderhoeven  16-Nov-2026:
  *     Select one result reporter before file creation and process exit.
  * X-1  CV  Camiel Vanderhoeven  15-Nov-2026: Native result adapter.
@@ -36,11 +38,11 @@ static int claim_result(int kind)
 	 * Retry until this claim succeeds or an actual competing claim is visible.
 	 */
 	while (result_reporter == 0) {
-#ifdef __ia64
-		if (__CMP_SWAP_LONG((volatile void *)&result_reporter, 0, kind))
-#else
+#ifdef __ALPHA
 		if (__CMP_STORE_LONG((volatile void *)&result_reporter, 0, kind,
 				     (volatile void *)&result_reporter))
+#else
+		if (__CMP_SWAP_LONG((volatile void *)&result_reporter, 0, kind))
 #endif
 			return 1;
 	}
@@ -113,6 +115,11 @@ void pts_exit(int code)
 
 int main(int argc, char **argv)
 {
+#if defined(__VMS) && __INITIAL_POINTER_SIZE == 64
+	char **test_argv;
+	int i;
+#endif
+
 	if (pts_read_control(stdin, &pts_control) != 0) {
 		fprintf(stderr, "Invalid or missing runner control input\n");
 		return EXIT_FAILURE;
@@ -125,6 +132,21 @@ int main(int argc, char **argv)
 	       pts_control.id, pts_control.seed, pts_control.threads,
 	       pts_control.iterations, (unsigned int)(sizeof(void *) * 8));
 	fflush(stdout);
+#if defined(__VMS) && __INITIAL_POINTER_SIZE == 64
+	/* OpenVMS supplies 32-bit argv elements to main. Keep the converted
+	 * vector available through exit handling, just like the original.
+	 */
+	test_argv = malloc(((size_t)argc + 1) * sizeof(*test_argv));
+	if (!test_argv) {
+		perror("allocating test argument vector");
+		return EXIT_FAILURE;
+	}
+	for (i = 0; i < argc; ++i)
+		test_argv[i] = argv[i];
+	test_argv[argc] = NULL;
+	pts_exit(test_main(argc, test_argv));
+#else
 	pts_exit(test_main(argc, argv));
+#endif
 	return EXIT_FAILURE;
 }
