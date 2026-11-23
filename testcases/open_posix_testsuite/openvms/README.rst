@@ -1,4 +1,5 @@
 .. SPDX-License-Identifier: GPL-2.0-or-later
+.. X-1 CV Camiel Vanderhoeven 23-Nov-2026. Document final-AST delivery cases.
 
 OpenVMS pthread test port
 =========================
@@ -151,7 +152,7 @@ built in ``[.BUILD]``.
 Disabled-AST regressions
 ------------------------
 
-Eight supplemental cases check deferred AST delivery in a threaded process
+Ten supplemental cases check deferred AST delivery in a threaded process
 using the public SYS$SETAST, SYS$DCLAST, and SYS$SETIMR services:
 
 * ``PT_AST_MAIN`` disables ASTs in the initial thread, queues callbacks, and
@@ -179,6 +180,44 @@ using the public SYS$SETAST, SYS$DCLAST, and SYS$SETIMR services:
   serialization from plain output.
 * ``PT_AST_TIMER_ENABLE`` uses the baseline sequence but has one worker call
   SETAST(1) without a preceding disable. That must not release main's disable.
+* ``PT_AST_LAST_RUN`` has a worker disable ASTs and queue a single callback.
+  After the initial thread enters a memory-polling loop, the worker enables
+  ASTs. Both threads wait for the callback without calling pthreads again.
+* ``PT_AST_LAST_JOIN`` uses the same worker while the initial thread joins it.
+  The worker yields once before enabling ASTs to give the join time to block.
+  A public API cannot verify which scheduler instruction the join reached.
+  The worker stays alive until the callback runs.
+
+Both final-AST cases keep both threads runnable during setup and allow 32
+checks of JPI$_KT_COUNT for a second kernel thread to appear. If the count
+stays below two, they report UNSUPPORTED.
+They check that the AST stayed deferred while the fence was closed and that
+the callback ran exactly once on the initial user thread. The callback reads
+its sequence number from its thread environment block. The kernel-thread
+count does not establish which VP ran either thread at release.
+There is one application AST per child process.
+Only the external supervisor enforces the deadline.
+
+For an old/new RTL comparison, first run the standard ``@BUILD 64 BOTH``
+and ``@RUN_AST`` commands below with the production RTL. On a separate
+test job, rebuild with each corresponding debug RTL and select just the
+two final-AST cases. The following commands assume that PTHREAD_CONFIG
+was undefined in that job and that ``[.RESULTS]`` already exists::
+
+    $ SEARCH/NOHEADING/OUTPUT=LAST_AST.DAT CASES.DAT "PT_AST_LAST_"
+    $ runner := $device:[directory.BUILD]PTS_RUNNER.EXE
+    $ runner LAST_AST.DAT "[.RESULTS]" 1 12345 2 1
+    $ DEFINE/JOB PTHREAD_CONFIG "features=timeslice"
+    $ runner LAST_AST.DAT "[.RESULTS]" 1 12345 2 1
+    $ DEASSIGN/JOB PTHREAD_CONFIG
+
+Substitute the full build directory in the foreign command. The quoted
+setting sets the debug RTL's timeslice-disable bit. The job logical is
+visible to the child images. With ordinary periodic timeslicing, a later
+quantum may service a request whose first notification was lost. Compare
+runs with and without that setting on
+each debug RTL, using the same VM, upcalls, and kernel-thread settings.
+Production RTLs compiled with NDEBUG always enable the timeslicer.
 
 The first four timer variants model the no-argument reproducer's main-thread
 disable; the fifth separately covers its extra worker-enable mode. Timers and
@@ -200,7 +239,7 @@ handshakes use ordinary thread synchronization and do not wait for AST completio
 AST callbacks use no ordinary pthread locking or waiting routines. These tests
 exercise the AST delivery path without adding logging to the runtime.
 
-All eight are built by ``@BUILD`` and included in ``@RUN``. To run only these
+All ten are built by ``@BUILD`` and included in ``@RUN``. To run only these
 cases, from the ``OPENVMS`` directory::
 
     $ @BUILD 64 BOTH
@@ -212,10 +251,10 @@ The interface is::
     @RUN_AST [repeats [seed [iterations [timeout_seconds [CONTINUE|STOP_ON_CRASH]]]]]
 
 Defaults are one repetition, seed 1, 200 iterations, and a 300-second deadline
-per case. There is no worker-count argument: each case uses the initial thread
-and two helpers. Iterations repeat the original three scenarios; each timer
-variant runs one sequence per child process regardless of the iteration count.
-Use repetitions to repeat all eight in fresh processes. The seed varies yield
+per case. Each case uses the initial thread and one or two helpers. Iterations
+repeat the original three scenarios. Each timer and final-AST variant runs
+one sequence per child process. Use repetitions to repeat all ten cases in
+fresh processes. The seed varies yield
 injection, not timer lengths. The supervisor retains each case's STDOUT.LOG,
 STDERR.LOG, and SUMMARY.CSV entry under ``[.RESULTS]``.
 

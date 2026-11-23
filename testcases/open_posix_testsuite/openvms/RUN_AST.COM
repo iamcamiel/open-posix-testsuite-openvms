@@ -1,5 +1,6 @@
 $! SPDX-License-Identifier: GPL-2.0-or-later
 $! Copyright 2026 VMS Software, Inc.
+$! X-3 CV Camiel Vanderhoeven 23-Nov-2026: Select both final-AST regressions.
 $! X-2 CV Camiel Vanderhoeven 17-Nov-2026: Include timer/timed-wait cases.
 $! X-1 CV Camiel Vanderhoeven 17-Nov-2026: Disabled-AST regression selection.
 $! @RUN_AST [repeats [seed [iterations [timeout_seconds [CONTINUE|STOP_ON_CRASH]]]]]
@@ -52,13 +53,16 @@ $ found_timer_printf = 0
 $ found_timer_flush = 0
 $ found_timer_crtl = 0
 $ found_timer_enable = 0
+$ found_last_run = 0
+$ found_last_join = 0
 $next_case:
 $ read/end=cases_done cases row
 $ id = f$element(0,"|",row)
 $ if id .nes. "PT_AST_MAIN" .and. id .nes. "PT_AST_WORKER" .and. -
      id .nes. "PT_AST_CALLBACK" .and. id .nes. "PT_AST_TIMER" .and. -
      id .nes. "PT_AST_TIMER_PRINTF" .and. id .nes. "PT_AST_TIMER_CRTL" .and. -
-     id .nes. "PT_AST_TIMER_ENABLE" .and. id .nes. "PT_AST_TIMER_FLUSH" then goto next_case
+     id .nes. "PT_AST_TIMER_ENABLE" .and. id .nes. "PT_AST_TIMER_FLUSH" .and. -
+     id .nes. "PT_AST_LAST_RUN" .and. id .nes. "PT_AST_LAST_JOIN" then goto next_case
 $ if id .eqs. "PT_AST_MAIN" then found_main = 1
 $ if id .eqs. "PT_AST_WORKER" then found_worker = 1
 $ if id .eqs. "PT_AST_CALLBACK" then found_callback = 1
@@ -67,6 +71,8 @@ $ if id .eqs. "PT_AST_TIMER_PRINTF" then found_timer_printf = 1
 $ if id .eqs. "PT_AST_TIMER_FLUSH" then found_timer_flush = 1
 $ if id .eqs. "PT_AST_TIMER_CRTL" then found_timer_crtl = 1
 $ if id .eqs. "PT_AST_TIMER_ENABLE" then found_timer_enable = 1
+$ if id .eqs. "PT_AST_LAST_RUN" then found_last_run = 1
+$ if id .eqs. "PT_AST_LAST_JOIN" then found_last_join = 1
 $ write selected id + "|" + f$element(1,"|",row) + -
     "|" + f$string(timeout) + "|" + f$element(3,"|",row) + "|" + -
     f$element(4,"|",row) + "|" + f$element(5,"|",row) + "|" + -
@@ -81,9 +87,10 @@ $ if .not. found_main .or. .not. found_worker .or. .not. found_callback then got
 $ if .not. found_timer .or. .not. found_timer_crtl then goto missing
 $ if .not. found_timer_printf .or. .not. found_timer_enable then goto missing
 $ if .not. found_timer_flush then goto missing
+$ if .not. found_last_run .or. .not. found_last_join then goto missing
 $ build_dir = f$extract(0,f$length(here)-1,here) + ".BUILD]"
 $ runner := $'build_dir'PTS_RUNNER.EXE
-$! The scenarios use the initial thread and two helper threads.
+$! Scenarios use the initial thread and up to two helpers.
 $ runner 'manifest' "[.RESULTS]" 'p1' 'p2' 3 'p3' "''p5'"
 $ run_status = $status
 $ set default 'saved_default'
